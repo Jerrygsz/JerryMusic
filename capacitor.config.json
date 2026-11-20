@@ -1,0 +1,6 @@
+{
+  "appId": "com.jerrymusic.app",
+  "appName": "JerryMusic",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
