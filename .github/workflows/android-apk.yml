@@ -33,11 +33,17 @@ jobs:
       - name: Install npm dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Build local music bridge
+        run: npm run build:bridge
+
       - name: Add Android platform
         run: npx cap add android
 
       - name: Sync web assets
         run: npx cap sync android
+
+      - name: Register native local music plugin
+        run: node scripts/patch-android.mjs
 
       - name: Build debug APK
         working-directory: android
