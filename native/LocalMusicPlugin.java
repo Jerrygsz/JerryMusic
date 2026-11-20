@@ -52,6 +52,7 @@ public class LocalMusicPlugin extends Plugin {
         try {
             int returnedFlags = data.getFlags();
             int grantFlags = returnedFlags & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            if (grantFlags == 0) grantFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION;
             getContext().getContentResolver().takePersistableUriPermission(uri, grantFlags);
             DocumentFile folder = DocumentFile.fromTreeUri(getContext(), uri);
             String name = folder != null && folder.getName() != null ? folder.getName() : "本地音乐文件夹";
