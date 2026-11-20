@@ -15,17 +15,23 @@
     </header>
     <main>
       <section id="home-view" class="view active">
-        <div class="greeting"><p class="eyebrow">YOUR DAILY SOUNDTRACK</p><h1>今天，<em>听点什么？</em></h1><p class="muted">来自开放音乐档案的免费音乐探索</p></div>
-        <div class="feature-card"><div><span class="eyebrow">EDITOR'S PICK</span><h2>把世界调成<br>自己喜欢的频率</h2><p>探索独立音乐、现场录音与声音收藏</p><button class="light-btn" id="discover-btn">开始探索 <span>↗</span></button></div><div class="orb">♫</div></div>
-        <div class="section-head"><div><span class="eyebrow">DISCOVER</span><h2>按心情探索</h2></div></div>
+        <div class="greeting"><p class="eyebrow">YOUR MUSIC, YOUR SPACE</p><h1>回到自己的<br><em>音乐收藏。</em></h1><p class="muted">先听手机里的歌，偶尔也去外面逛逛。</p></div>
+        <div class="section-head home-section-head"><div><span class="eyebrow">ON YOUR DEVICE</span><h2>我的本地音乐</h2><p class="muted" id="home-local-count">选择文件夹后自动读取</p></div><button class="text-btn" id="home-local-open">查看全部 ↗</button></div>
+        <div id="home-local-list" class="track-list"><div class="empty-note">正在读取你的音乐文件夹…</div></div>
+        <div class="local-home-actions"><button id="home-choose-folder">选择音乐文件夹</button><span>只读取你授权的文件夹，不会上传音乐</span></div>
+        <div class="section-head"><div><span class="eyebrow">RECENTLY PLAYED</span><h2>最近播放</h2></div></div>
+        <div id="recent-list" class="track-list"><div class="empty-note">播放过的音乐会出现在这里</div></div>
+        <div class="online-discover">
+          <div><span class="eyebrow">ONLINE DISCOVERY</span><h2>想听点没听过的？</h2><p>从 Internet Archive 探索独立音乐、现场录音与开放音频。</p></div>
+          <button id="discover-btn">探索在线音乐 ↗</button>
+        </div>
+        <div class="section-head"><div><span class="eyebrow">MOOD</span><h2>按心情找声音</h2></div></div>
         <div class="mood-grid">
           <button class="mood mood-1" data-query="ambient electronic"><b>氛围电子</b><span>AMBIENT</span></button>
           <button class="mood mood-2" data-query="jazz instrumental"><b>爵士时刻</b><span>JAZZ</span></button>
           <button class="mood mood-3" data-query="indie rock"><b>独立摇滚</b><span>INDIE</span></button>
           <button class="mood mood-4" data-query="classical piano"><b>钢琴与古典</b><span>CLASSICAL</span></button>
         </div>
-        <div class="section-head"><div><span class="eyebrow">RECENTLY PLAYED</span><h2>最近播放</h2></div><button class="text-btn" data-tab="search">更多</button></div>
-        <div id="recent-list" class="track-list"><div class="empty-note">播放过的音乐会出现在这里</div></div>
       </section>
       <section id="search-view" class="view">
         <div class="page-heading"><span class="eyebrow">MUSIC DISCOVERY</span><h1>发现音乐</h1><p class="muted">在线搜索开放音乐，或搜索你手机里的音乐</p></div>
@@ -58,9 +64,9 @@
     <div class="player" id="player">
       <div class="player-meta"><div class="cover-mini">♫</div><div class="track-meta"><strong id="now-title">还没有播放歌曲</strong><small id="now-artist">去发现页找点音乐</small></div><button class="icon-btn heart-btn" id="player-fav">♡</button></div>
       <div class="progress-wrap"><span id="current-time">0:00</span><input id="seek" type="range" min="0" max="1000" value="0"><span id="duration">0:00</span></div>
-      <div class="controls"><button id="prev-btn" aria-label="上一首">↶</button><button id="play-btn" class="play-btn" aria-label="播放">▶</button><button id="next-btn" aria-label="下一首">↷</button><button id="queue-btn" aria-label="播放队列">☷</button></div>
+      <div class="controls"><button id="shuffle-btn" aria-label="随机播放" title="随机播放">⤨</button><button id="prev-btn" aria-label="上一首">↶</button><button id="play-btn" class="play-btn" aria-label="播放">▶</button><button id="next-btn" aria-label="下一首">↷</button><button id="repeat-btn" aria-label="循环模式" title="循环模式">↻</button><button id="queue-btn" aria-label="播放队列">☷</button></div>
     </div>
-    <nav class="bottom-nav">
+    <section id="queue-panel" class="queue-panel"><div class="queue-head"><div><span class="eyebrow">UP NEXT</span><h2>播放队列</h2></div><button id="queue-close" class="icon-btn" aria-label="关闭队列">×</button></div><div id="queue-list"></div></section>\n    <nav class="bottom-nav">
       <button class="nav-item active" data-tab="home"><span>⌂</span>推荐</button>
       <button class="nav-item" data-tab="search"><span>⌕</span>发现</button>
       <button class="nav-item" data-tab="library"><span>▤</span>我的</button>
