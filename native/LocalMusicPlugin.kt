@@ -62,7 +62,7 @@ class LocalMusicPlugin : Plugin() {
             response.put("name", name)
             call.resolve(response)
         } catch (e: Exception) {
-            call.reject("Unable to keep folder access: \${e.message}", e)
+            call.reject("Unable to keep folder access: ${e.message}", e)
         }
     }
 
@@ -114,7 +114,7 @@ class LocalMusicPlugin : Plugin() {
                             val searchable = "$title $artist $name".lowercase(Locale.ROOT)
                             if (query.isEmpty() || searchable.contains(query)) {
                                 val item = JSObject()
-                                item.put("id", "local:\${child.uri}")
+                                item.put("id", "local:${child.uri}")
                                 item.put("uri", child.uri.toString())
                                 item.put("title", title)
                                 item.put("artist", artist)
@@ -136,7 +136,7 @@ class LocalMusicPlugin : Plugin() {
         } catch (e: SecurityException) {
             call.reject("Folder permission expired. Please choose the folder again.", e)
         } catch (e: Exception) {
-            call.reject("Could not scan this folder: \${e.message}", e)
+            call.reject("Could not scan this folder: ${e.message}", e)
         }
     }
 
@@ -153,7 +153,7 @@ class LocalMusicPlugin : Plugin() {
             val displayName = queryDisplayName(uri) ?: uri.lastPathSegment ?: "track.mp3"
             val extension = displayName.substringAfterLast('.', "mp3")
                 .lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "").take(8).ifBlank { "mp3" }
-            val target = File(cacheDir, "\${rawUri.hashCode().toUInt().toString(16)}.$extension")
+            val target = File(cacheDir, "${rawUri.hashCode().toUInt().toString(16)}.$extension")
             if (!target.exists() || target.length() == 0L) {
                 context.contentResolver.openInputStream(uri).use { input ->
                     if (input == null) throw IllegalStateException("Cannot open selected audio file")
@@ -167,7 +167,7 @@ class LocalMusicPlugin : Plugin() {
         } catch (e: SecurityException) {
             call.reject("No permission to read this audio file. Select the folder again.", e)
         } catch (e: Exception) {
-            call.reject("Could not prepare this audio file: \${e.message}", e)
+            call.reject("Could not prepare this audio file: ${e.message}", e)
         }
     }
 
