@@ -39,7 +39,10 @@ jobs:
           test -s www/local-music-bridge.js
           grep -q 'local-music-bridge.js' www/index.html
 
-      - name: Validate JavaScript syntax\n        run: node --check www/app.js\n\n      - name: Add Android platform
+      - name: Validate JavaScript syntax
+        run: node --check www/app.js
+
+      - name: Add Android platform
         run: npx cap add android
 
       - name: Sync web assets
