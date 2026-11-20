@@ -28,8 +28,24 @@
         <div id="recent-list" class="track-list"><div class="empty-note">播放过的音乐会出现在这里</div></div>
       </section>
       <section id="search-view" class="view">
-        <div class="page-heading"><span class="eyebrow">OPEN MUSIC LIBRARY</span><h1>发现音乐</h1><p class="muted">搜索 Internet Archive 中可在线播放的开放音频</p></div>
-        <form id="search-form" class="search-box"><span>⌕</span><input id="search-input" placeholder="搜索歌名、艺术家或风格" autocomplete="off"><button type="submit">搜索</button></form>
+        <div class="page-heading"><span class="eyebrow">MUSIC DISCOVERY</span><h1>发现音乐</h1><p class="muted">在线搜索开放音乐，或搜索你手机里的音乐</p></div>
+        <div class="search-tabs" role="tablist" aria-label="音乐来源">
+          <button class="selected" data-source="online" type="button">在线音乐</button>
+          <button data-source="local" type="button">手机本地</button>
+        </div>
+        <div id="online-panel" class="source-panel">
+          <form id="search-form" class="search-box"><span>⌕</span><input id="search-input" placeholder="搜索歌名、艺术家或风格" autocomplete="off"><button type="submit">搜索</button></form>
+          <p class="source-hint">搜索 Internet Archive 中可在线播放的开放音频</p>
+        </div>
+        <div id="local-panel" class="source-panel" hidden>
+          <div class="folder-card">
+            <div class="folder-icon">▣</div>
+            <div class="folder-copy"><strong>我的音乐文件夹</strong><small id="local-folder-name">尚未选择文件夹</small></div>
+            <button id="choose-local-folder" type="button">选择文件夹</button>
+          </div>
+          <p class="source-hint">只读取你授权的文件夹，不会上传本地音乐。首次选择后会记住授权。</p>
+          <form id="local-search-form" class="search-box"><span>⌕</span><input id="local-search-input" placeholder="搜索本地歌名或文件名" autocomplete="off"><button type="submit">搜索</button></form>
+        </div>
         <div id="search-status" class="muted status">试试搜索 jazz、ambient 或 piano</div>
         <div id="results-list" class="track-list"></div>
       </section>
@@ -52,6 +68,7 @@
   </div>
   <audio id="audio" preload="metadata"></audio>
   <div id="toast" class="toast"></div>
+  <script src="local-music-bridge.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
