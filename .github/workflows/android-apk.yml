@@ -2,9 +2,9 @@ name: Build JerryMusic Android APK
 
 on:
   push:
-    branches: [main, feature/android-apk]
+    branches: [main, feature/android-apk, feature/local-first-home-bulk-actions]
   pull_request:
-    branches: [main]
+    branches: [main, feature/android-apk]
   workflow_dispatch:
 
 permissions:
