@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#101114">
+  <title>JerryMusic</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">J</span><div><strong>JERRY MUSIC</strong><small>听点真正喜欢的</small></div></div>
+      <button class="icon-btn" id="search-focus" aria-label="搜索">⌕</button>
+    </header>
+    <main>
+      <section id="home-view" class="view active">
+        <div class="greeting"><p class="eyebrow">YOUR DAILY SOUNDTRACK</p><h1>今天，<em>听点什么？</em></h1><p class="muted">来自开放音乐档案的免费音乐探索</p></div>
+        <div class="feature-card"><div><span class="eyebrow">EDITOR'S PICK</span><h2>把世界调成<br>自己喜欢的频率</h2><p>探索独立音乐、现场录音与声音收藏</p><button class="light-btn" id="discover-btn">开始探索 <span>↗</span></button></div><div class="orb">♫</div></div>
+        <div class="section-head"><div><span class="eyebrow">DISCOVER</span><h2>按心情探索</h2></div></div>
+        <div class="mood-grid">
+          <button class="mood mood-1" data-query="ambient electronic"><b>氛围电子</b><span>AMBIENT</span></button>
+          <button class="mood mood-2" data-query="jazz instrumental"><b>爵士时刻</b><span>JAZZ</span></button>
+          <button class="mood mood-3" data-query="indie rock"><b>独立摇滚</b><span>INDIE</span></button>
+          <button class="mood mood-4" data-query="classical piano"><b>钢琴与古典</b><span>CLASSICAL</span></button>
+        </div>
+        <div class="section-head"><div><span class="eyebrow">RECENTLY PLAYED</span><h2>最近播放</h2></div><button class="text-btn" data-tab="search">更多</button></div>
+        <div id="recent-list" class="track-list"><div class="empty-note">播放过的音乐会出现在这里</div></div>
+      </section>
+      <section id="search-view" class="view">
+        <div class="page-heading"><span class="eyebrow">OPEN MUSIC LIBRARY</span><h1>发现音乐</h1><p class="muted">搜索 Internet Archive 中可在线播放的开放音频</p></div>
+        <form id="search-form" class="search-box"><span>⌕</span><input id="search-input" placeholder="搜索歌名、艺术家或风格" autocomplete="off"><button type="submit">搜索</button></form>
+        <div id="search-status" class="muted status">试试搜索 jazz、ambient 或 piano</div>
+        <div id="results-list" class="track-list"></div>
+      </section>
+      <section id="library-view" class="view">
+        <div class="page-heading"><span class="eyebrow">YOUR COLLECTION</span><h1>我的音乐</h1><p class="muted">收藏与自建歌单，都保存在这台设备</p></div>
+        <div class="library-tabs"><button class="selected" data-library="favorites">我的收藏</button><button data-library="playlists">我的歌单</button></div>
+        <div id="library-content"></div>
+      </section>
+    </main>
+    <div class="player" id="player">
+      <div class="player-meta"><div class="cover-mini">♫</div><div class="track-meta"><strong id="now-title">还没有播放歌曲</strong><small id="now-artist">去发现页找点音乐</small></div><button class="icon-btn heart-btn" id="player-fav">♡</button></div>
+      <div class="progress-wrap"><span id="current-time">0:00</span><input id="seek" type="range" min="0" max="1000" value="0"><span id="duration">0:00</span></div>
+      <div class="controls"><button id="prev-btn" aria-label="上一首">↶</button><button id="play-btn" class="play-btn" aria-label="播放">▶</button><button id="next-btn" aria-label="下一首">↷</button><button id="queue-btn" aria-label="播放队列">☷</button></div>
+    </div>
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-tab="home"><span>⌂</span>推荐</button>
+      <button class="nav-item" data-tab="search"><span>⌕</span>发现</button>
+      <button class="nav-item" data-tab="library"><span>▤</span>我的</button>
+    </nav>
+  </div>
+  <audio id="audio" preload="metadata"></audio>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
