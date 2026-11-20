@@ -5,7 +5,7 @@
   "description": "JerryMusic online and local music player",
   "scripts": {
     "android:sync": "cap sync android",
-    "build:bridge": "esbuild native/local-music-bridge.js --bundle --format=iife --outfile=www/local-music-bridge.js"
+    "build:bridge": "esbuild native/local-music-bridge.js --bundle --format=esm --outfile=www/local-music-bridge.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
