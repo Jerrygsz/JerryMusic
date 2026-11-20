@@ -37,7 +37,7 @@ jobs:
         run: |
           npm run build:bridge
           test -s www/local-music-bridge.js
-          grep -q 'JerryLocalMusic' www/index.html
+          grep -q 'local-music-bridge.js' www/index.html
 
       - name: Add Android platform
         run: npx cap add android
