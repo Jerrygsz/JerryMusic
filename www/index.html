@@ -62,10 +62,26 @@
       </section>
     </main>
     <div class="player" id="player">
-      <div class="player-meta"><div class="cover-mini">♫</div><div class="track-meta"><strong id="now-title">还没有播放歌曲</strong><small id="now-artist">去发现页找点音乐</small></div><button class="icon-btn heart-btn" id="player-fav">♡</button></div>
+      <div class="player-meta" id="mini-player-open"><div class="cover-mini">♫</div><div class="track-meta"><strong id="now-title">还没有播放歌曲</strong><small id="now-artist">去发现页找点音乐</small></div><button class="icon-btn heart-btn" id="player-fav">♡</button><span class="mini-expand">⌃</span></div>
       <div class="progress-wrap"><span id="current-time">0:00</span><input id="seek" type="range" min="0" max="1000" value="0"><span id="duration">0:00</span></div>
       <div class="controls"><button id="shuffle-btn" aria-label="随机播放" title="随机播放">⤨</button><button id="prev-btn" aria-label="上一首">↶</button><button id="play-btn" class="play-btn" aria-label="播放">▶</button><button id="next-btn" aria-label="下一首">↷</button><button id="repeat-btn" aria-label="循环模式" title="循环模式">↻</button><button id="queue-btn" aria-label="播放队列">☷</button></div>
     </div>
+    <section id="full-player" class="full-player" aria-hidden="true">
+      <div class="full-player-head"><button id="full-close" class="icon-btn" aria-label="收起播放器">⌄</button><span>NOW PLAYING</span><button id="full-queue" class="icon-btn" aria-label="播放列表">☷</button></div>
+      <div class="full-art"><div class="full-art-glyph">♫</div></div>
+      <div class="full-track-line"><div><h2 id="full-title">还没有播放歌曲</h2><p id="full-artist">JerryMusic</p></div><button id="full-fav" class="icon-btn">♡</button></div>
+      <div class="full-lyrics" id="lyrics-panel"><div class="lyrics-placeholder">播放歌曲后，自动查找歌词</div></div>
+      <div class="full-progress"><span id="full-current">0:00</span><input id="full-seek" type="range" min="0" max="1000" value="0"><span id="full-duration">0:00</span></div>
+      <div class="full-controls"><button id="full-shuffle">⤨</button><button id="full-prev">↶</button><button id="full-play" class="full-play">▶</button><button id="full-next">↷</button><button id="full-repeat">↻</button></div>
+      <div class="full-tools"><button id="eq-open">♫ 均衡器 EQ</button><button id="lyrics-retry">重新匹配歌词</button></div>
+      <section id="eq-panel" class="eq-panel">
+        <div class="eq-head"><strong>音效均衡器</strong><button id="eq-close" class="icon-btn">×</button></div>
+        <div class="eq-presets"><button data-eq="flat">原声</button><button data-eq="bass">低音增强</button><button data-eq="vocal">人声</button><button data-eq="treble">高音</button></div>
+        <label>低音 <input id="eq-low" type="range" min="-12" max="12" value="0"></label>
+        <label>中音 <input id="eq-mid" type="range" min="-12" max="12" value="0"></label>
+        <label>高音 <input id="eq-high" type="range" min="-12" max="12" value="0"></label>
+      </section>
+    </section>
     <section id="queue-panel" class="queue-panel"><div class="queue-head"><div><span class="eyebrow">UP NEXT</span><h2>播放队列</h2></div><button id="queue-close" class="icon-btn" aria-label="关闭队列">×</button></div><div id="queue-list"></div></section>
     <nav class="bottom-nav">
       <button class="nav-item active" data-tab="home"><span>⌂</span>推荐</button>
