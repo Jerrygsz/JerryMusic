@@ -93,3 +93,8 @@
 .eq-panel label{display:flex;align-items:center;gap:12px;font-size:11px;color:var(--muted);margin:10px 0}
 .eq-panel label input{flex:1;accent-color:var(--lime)}
 @media(min-width:650px){.full-player{max-width:760px;left:50%;transform:translate(-50%,105%);border-left:1px solid var(--line);border-right:1px solid var(--line)}.full-player.open{transform:translate(-50%,0)}}
+
+/* Queue opens as a right-side drawer above the full player */
+.queue-panel{left:auto;right:0;bottom:0;width:min(86vw,390px);max-width:390px;height:100dvh;max-height:100dvh;border-radius:20px 0 0 20px;z-index:34;padding:calc(env(safe-area-inset-top) + 18px) 18px calc(env(safe-area-inset-bottom) + 18px);transform:translateX(110%);visibility:hidden}
+.queue-panel.open{transform:translateX(0);visibility:visible}
+@media(min-width:650px){.queue-panel{right:max(calc((100vw - 760px)/2),0px)}}
