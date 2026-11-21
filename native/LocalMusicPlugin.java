@@ -23,6 +23,8 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.Locale;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 @CapacitorPlugin(name = "LocalMusic")
 public class LocalMusicPlugin extends Plugin {
@@ -59,6 +61,8 @@ public class LocalMusicPlugin extends Plugin {
             getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putString("tree_uri", uri.toString())
                 .putString("folder_name", name)
+                .putString("cache_tree_uri", "")
+                .putString("tracks_cache", "[]")
                 .apply();
             JSObject response = new JSObject();
             response.put("uri", uri.toString());
@@ -87,6 +91,21 @@ public class LocalMusicPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getCachedLocalMusic(PluginCall call) {
+        android.content.SharedPreferences prefs = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String treeUri = prefs.getString("tree_uri", null);
+        String cachedTree = prefs.getString("cache_tree_uri", null);
+        String raw = prefs.getString("tracks_cache", "[]");
+        JSObject response = new JSObject();
+        try {
+            response.put("tracks", new JSArray(treeUri != null && treeUri.equals(cachedTree) ? raw : "[]"));
+            response.put("cached", treeUri != null && treeUri.equals(cachedTree));
+            response.put("scannedAt", prefs.getLong("cache_scanned_at", 0L));
+            call.resolve(response);
+        } catch (Exception e) { call.reject("Could not read local music cache", e); }
+    }
+
+    @PluginMethod
     public void searchLocalMusic(PluginCall call) {
         String treeUri = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("tree_uri", null);
         if (treeUri == null || treeUri.isEmpty()) {
@@ -101,6 +120,13 @@ public class LocalMusicPlugin extends Plugin {
                 return;
             }
             JSArray found = new JSArray();
+            android.content.SharedPreferences prefs = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            JSONArray oldCache = new JSONArray(prefs.getString("tracks_cache", "[]"));
+            java.util.HashMap<String, JSONObject> oldByUri = new java.util.HashMap<>();
+            for (int i = 0; i < oldCache.length(); i++) {
+                JSONObject old = oldCache.optJSONObject(i);
+                if (old != null) oldByUri.put(old.optString("uri"), old);
+            }
             ArrayDeque<DocumentFile> stack = new ArrayDeque<>();
             stack.add(root);
             int visited = 0;
@@ -114,12 +140,23 @@ public class LocalMusicPlugin extends Plugin {
                         stack.add(child);
                     } else if (child.isFile() && isAudioFile(child)) {
                         String name = child.getName() == null ? "未知音频" : child.getName();
-                        String[] metadata = readMetadata(child.getUri(), name);
+                        String fileUri = child.getUri().toString();
+                        long fileSize = child.length();
+                        long modified = child.lastModified();
+                        JSONObject cached = oldByUri.get(fileUri);
+                        String[] metadata;
+                        if (cached != null && cached.optLong("size", -1L) == fileSize && cached.optLong("modified", -1L) == modified) {
+                            metadata = new String[]{cached.optString("title", name), cached.optString("artist", "本地音乐"), cached.optString("durationMs", "")};
+                        } else {
+                            metadata = readMetadata(child.getUri(), name);
+                        }
                         String searchable = (metadata[0] + " " + metadata[1] + " " + name).toLowerCase(Locale.ROOT);
                         if (query.isEmpty() || searchable.contains(query)) {
                             JSObject item = new JSObject();
-                            item.put("id", "local:" + child.getUri().toString());
-                            item.put("uri", child.getUri().toString());
+                            item.put("id", "local:" + fileUri);
+                            item.put("uri", fileUri);
+                            item.put("size", fileSize);
+                            item.put("modified", modified);
                             item.put("title", metadata[0]);
                             item.put("artist", metadata[1]);
                             item.put("fileName", name);
@@ -130,6 +167,10 @@ public class LocalMusicPlugin extends Plugin {
                         }
                     }
                 }
+            }
+            if (query.isEmpty()) {
+                prefs.edit().putString("cache_tree_uri", treeUri).putString("tracks_cache", found.toString())
+                    .putLong("cache_scanned_at", System.currentTimeMillis()).apply();
             }
             JSObject response = new JSObject();
             response.put("tracks", found);
