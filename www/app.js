@@ -96,6 +96,7 @@ $("#seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("
 $("#full-seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("#full-seek").value/1000)};
 const openFull=()=>{$("#full-player").classList.add("open");$("#full-player").setAttribute("aria-hidden","false")};
 $("#mini-player-open").onclick=e=>{if(e.target.closest("#player-fav"))return;openFull()};
+$("#player").addEventListener("click",e=>{if(!e.target.closest("button,input"))openFull()});
 $("#full-close").onclick=()=>{$("#full-player").classList.remove("open");$("#full-player").setAttribute("aria-hidden","true")};
 $("#full-queue").onclick=()=>{$("#queue-panel").classList.add("open");renderQueue()};
 $("#full-play").onclick=()=>$("#play-btn").click();
@@ -119,7 +120,7 @@ function setupEQ(){
 function setEQ(low,mid,high){setupEQ();if(!eqContext)return;if(eqContext.state==="suspended")eqContext.resume();eqLow.gain.value=low;eqMid.gain.value=mid;eqHigh.gain.value=high;$("#eq-low").value=low;$("#eq-mid").value=mid;$("#eq-high").value=high}
 ["low","mid","high"].forEach(k=>$("#eq-"+k).oninput=()=>setEQ(+$("#eq-low").value,+$("#eq-mid").value,+$("#eq-high").value));
 $("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"?[7,2,0]:p==="vocal"?[-2,5,2]:p==="treble"?[0,1,7]:[0,0,0];setEQ(...v)});
-let lyricLines=[],lyricRequest=0;
+let lyricLines=[],lyricRequest=0,lastActiveLyric=-1;
 async function lookupLyrics(track){
  const id=++lyricRequest;
  try{
@@ -132,7 +133,7 @@ async function lookupLyrics(track){
   $("#full-title").textContent=best.trackName||track.title;
   $("#full-artist").textContent=best.artistName||track.artist;
   if(best.syncedLyrics){
-   lyricLines=best.syncedLyrics.split(/\r?\n/).flatMap(line=>{const m=[...line.matchAll(/\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/g)];const text=line.replace(/\[[^\]]+\]/g,"").trim();return m.map(x=>({time:+x[1]*60 + +x[2] + (x[3]?+(x[3].padEnd(3,"0"))/1000:0),text}))}).filter(x=>x.text).sort((a,b)=>a.time-b.time);
+   lastActiveLyric=-1;lyricLines=best.syncedLyrics.split(/\r?\n/).flatMap(line=>{const m=[...line.matchAll(/\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/g)];const text=line.replace(/\[[^\]]+\]/g,"").trim();return m.map(x=>({time:+x[1]*60 + +x[2] + (x[3]?+(x[3].padEnd(3,"0"))/1000:0),text}))}).filter(x=>x.text).sort((a,b)=>a.time-b.time);
    $("#lyrics-panel").innerHTML=lyricLines.length?lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join(""):'<div class="lyrics-placeholder">找到歌词，但没有可同步的时间轴</div>';
   }else{$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">'+esc(best.plainLyrics||"暂未找到歌词")+'</div>';lyricLines=[]}
  }catch(e){if(id===lyricRequest)$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">歌词暂时无法获取，联网后可重试</div>'}
@@ -140,6 +141,7 @@ async function lookupLyrics(track){
 function syncLyrics(time){
  if(!lyricLines.length)return;
  let active=-1;for(let i=0;i<lyricLines.length;i++){if(lyricLines[i].time<=time)active=i;else break}
+ if(active===lastActiveLyric)return;lastActiveLyric=active;
  const panel=$("#lyrics-panel");panel.querySelectorAll("[data-lyric]").forEach(el=>el.classList.toggle("active",+el.dataset.lyric===active));
  const current=panel.querySelector('[data-lyric="'+active+'"]');if(current)current.scrollIntoView({block:"center",behavior:"smooth"});
 }
