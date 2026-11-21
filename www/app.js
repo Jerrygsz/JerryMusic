@@ -7,7 +7,7 @@ const state={
  recent:JSON.parse(localStorage.getItem("jm_recent")||"[]"),localFolder:null,
  selectedIds:[],selectionTarget:null,currentPlaylistId:null,shuffle:false,repeat:"all"
 };
-let playRequest=0;
+let playRequest=0,onlineSearchSeq=0,onlineSearchController=null;
 const save=()=>{localStorage.setItem("jm_favorites",JSON.stringify(state.favorites));localStorage.setItem("jm_playlists",JSON.stringify(state.playlists));localStorage.setItem("jm_recent",JSON.stringify(state.recent))};
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const toast=s=>{const t=$("#toast");t.textContent=s;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)};
@@ -20,11 +20,26 @@ $("#discover-btn").onclick=()=>{switchTab("search");setSearchSource("online");$(
 function setSearchSource(source){state.searchSource=source;clearSelection();$$("[data-source]").forEach(b=>b.classList.toggle("selected",b.dataset.source===source));$("#online-panel").hidden=source!=="online";$("#local-panel").hidden=source!=="local";$("#search-status").textContent=source==="online"?"搜索 Internet Archive 中可在线播放的开放音频":"搜索你授权文件夹中的本地音乐";$("#results-list").innerHTML=""}
 $$("[data-source]").forEach(b=>b.addEventListener("click",()=>setSearchSource(b.dataset.source)));
 async function searchOnline(q){
- if(!q.trim())return;$("#search-status").textContent="正在开放音乐档案中寻找…";$("#results-list").innerHTML="";
- try{const url="https://archive.org/advancedsearch.php?"+new URLSearchParams({q:q+" AND mediatype:audio",fl:"identifier,title,creator,year,licenseurl",rows:"30",page:"1",output:"json"});const res=await fetch(url);if(!res.ok)throw Error("搜索服务暂时不可用");const data=await res.json(),docs=data.response?.docs||[];
- const details=await Promise.all(docs.slice(0,20).map(async d=>{try{const m=await fetch("https://archive.org/metadata/"+encodeURIComponent(d.identifier)),j=await m.json();const fs=(j.files||[]).filter(f=>f.name&&/\.(mp3|ogg|flac|m4a|wav)$/i.test(f.name)&&!f.name.includes("__MACOSX"));const f=fs.find(x=>x.source==="original"&&(!x.format||/mp3|ogg|flac|mpeg|wave/i.test(x.format)))||fs[0];if(!f)return null;const filePath=f.name.split("/").map(encodeURIComponent).join("/");return{id:d.identifier,title:d.title||f.title||d.identifier,artist:d.creator||"Internet Archive",year:d.year||"",license:d.licenseurl||j.metadata?.licenseurl||"",url:"https://archive.org/download/"+encodeURIComponent(d.identifier)+"/"+filePath,identifier:d.identifier,source:"online"}}catch{return null}}));
- state.results=details.filter(Boolean);renderTracks(state.results,"results-list","results");$("#search-status").textContent=state.results.length?("找到 "+state.results.length+" 首可播放音频 · 请留意每个作品的授权说明"):"没有找到可播放音频，换个关键词试试";
- }catch(e){$("#search-status").textContent="搜索失败："+e.message+"。请检查网络后重试。"}
+ if(!q.trim())return;
+ const seq=++onlineSearchSeq;
+ if(onlineSearchController)onlineSearchController.abort();
+ onlineSearchController=new AbortController();const signal=onlineSearchController.signal;
+ $("#search-status").textContent="正在开放音乐档案中寻找…";$("#results-list").innerHTML="";
+ try{
+  const url="https://archive.org/advancedsearch.php?"+new URLSearchParams({q:q+" AND mediatype:audio",fl:"identifier,title,creator,year,licenseurl",rows:"30",page:"1",output:"json"});
+  const res=await fetch(url,{signal});if(!res.ok)throw Error("搜索服务暂时不可用");
+  const data=await res.json(),docs=data.response?.docs||[],candidates=docs.slice(0,20),details=new Array(candidates.length);let cursor=0;
+  const worker=async()=>{while(cursor<candidates.length&&!signal.aborted){const i=cursor++,d=candidates[i];try{
+   const m=await fetch("https://archive.org/metadata/"+encodeURIComponent(d.identifier),{signal});if(!m.ok)continue;
+   const j=await m.json(),fs=(j.files||[]).filter(f=>f.name&&/\.(mp3|ogg|flac|m4a|wav)$/i.test(f.name)&&!f.name.includes("__MACOSX"));
+   const f=fs.find(x=>x.source==="original"&&(!x.format||/mp3|ogg|flac|mpeg|wave/i.test(x.format)))||fs[0];if(!f)continue;
+   const filePath=f.name.split("/").map(encodeURIComponent).join("/");
+   details[i]={id:d.identifier,title:d.title||f.title||d.identifier,artist:d.creator||"Internet Archive",year:d.year||"",license:d.licenseurl||j.metadata?.licenseurl||"",url:"https://archive.org/download/"+encodeURIComponent(d.identifier)+"/"+filePath,identifier:d.identifier,source:"online"};
+  }catch(e){if(signal.aborted)return}}};
+  await Promise.all(Array.from({length:Math.min(4,candidates.length)},worker));if(seq!==onlineSearchSeq)return;
+  state.results=details.filter(Boolean);renderTracks(state.results,"results-list","results");
+  $("#search-status").textContent=state.results.length?("找到 "+state.results.length+" 首可播放音频 · 请留意每个作品的授权说明"):"没有找到可播放音频，换个关键词试试";
+ }catch(e){if(seq===onlineSearchSeq&&!signal.aborted)$("#search-status").textContent="搜索失败："+e.message+"。请检查网络后重试。"}
 }
 $("#search-form").addEventListener("submit",e=>{e.preventDefault();searchOnline($("#search-input").value)});
 $$(".mood").forEach(b=>b.onclick=()=>{switchTab("search");setSearchSource("online");$("#search-input").value=b.dataset.query;searchOnline(b.dataset.query)});
@@ -91,7 +106,14 @@ function next(){if(!state.queue.length)return;if(state.repeat==="one"){audio.cur
 function prev(){if(audio.currentTime>3){audio.currentTime=0;return}if(state.queue.length){state.index=(state.index-1+state.queue.length)%state.queue.length;loadCurrent()}}
 $("#play-btn").onclick=()=>{if(!state.current){toast("先去本地曲库或发现页选择一首歌");return}if(audio.paused)audio.play().catch(()=>toast("无法播放此音源"));else audio.pause()};
 $("#next-btn").onclick=next;$("#prev-btn").onclick=prev;audio.onended=next;audio.onplay=()=>{$("#play-btn").textContent="Ⅱ";$("#full-play").textContent="Ⅱ"};audio.onpause=()=>{$("#play-btn").textContent="▶";$("#full-play").textContent="▶"};
-audio.ontimeupdate=()=>{if(audio.duration){const p=audio.currentTime/audio.duration*1000;$("#seek").value=p;$("#full-seek").value=p;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration);$("#full-current").textContent=fmt(audio.currentTime);$("#full-duration").textContent=fmt(audio.duration);syncLyrics(audio.currentTime)}};
+let progressFrame=0;
+audio.ontimeupdate=()=>{if(progressFrame)return;progressFrame=requestAnimationFrame(()=>{
+ progressFrame=0;if(!audio.duration)return;const p=audio.currentTime/audio.duration*1000;$("#seek").value=p;$("#full-seek").value=p;
+ const current=fmt(audio.currentTime),duration=fmt(audio.duration);
+ if($("#current-time").textContent!==current)$("#current-time").textContent=current;
+ if($("#duration").textContent!==duration)$("#duration").textContent=duration;
+ if($("#full-current").textContent!==current)$("#full-current").textContent=current;
+ if($("#full-duration").textContent!==duration)$("#full-duration").textContent=duration;syncLyrics(audio.currentTime);});};
 $("#seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("#seek").value/1000)};
 $("#full-seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("#full-seek").value/1000)};
 const openFull=()=>{$("#full-player").classList.add("open");$("#full-player").setAttribute("aria-hidden","false")};
@@ -139,11 +161,12 @@ async function lookupLyrics(track){
  }catch(e){if(id===lyricRequest)$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">歌词暂时无法获取，联网后可重试</div>'}
 }
 function syncLyrics(time){
- if(!lyricLines.length)return;
- let active=-1;for(let i=0;i<lyricLines.length;i++){if(lyricLines[i].time<=time)active=i;else break}
- if(active===lastActiveLyric)return;lastActiveLyric=active;
- const panel=$("#lyrics-panel");panel.querySelectorAll("[data-lyric]").forEach(el=>el.classList.toggle("active",+el.dataset.lyric===active));
- const current=panel.querySelector('[data-lyric="'+active+'"]');if(current)current.scrollIntoView({block:"center",behavior:"smooth"});
+ if(!lyricLines.length)return;let lo=0,hi=lyricLines.length-1,active=-1;
+ while(lo<=hi){const mid=(lo+hi)>>1;if(lyricLines[mid].time<=time){active=mid;lo=mid+1}else hi=mid-1}
+ if(active===lastActiveLyric)return;const panel=$("#lyrics-panel");
+ if(lastActiveLyric>=0){const previous=panel.querySelector('[data-lyric="'+lastActiveLyric+'"]');if(previous)previous.classList.remove("active")}
+ lastActiveLyric=active;const current=active>=0?panel.querySelector('[data-lyric="'+active+'"]'):null;
+ if(current){current.classList.add("active");const target=Math.max(0,current.offsetTop-panel.clientHeight/2+current.clientHeight/2);panel.scrollTo({top:target,behavior:"smooth"})}
 }
 $("#lyrics-retry").onclick=()=>state.current&&lookupLyrics(state.current);
 $("#player-fav").onclick=()=>state.current&&toggleFav(state.current);
