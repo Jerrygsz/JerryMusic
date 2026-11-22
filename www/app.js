@@ -224,7 +224,8 @@ function syncLyrics(seconds,force=false){
     const mid=(low+high)>>1;
     if(lyricLines[mid].time<=seconds){found=mid;low=mid+1}else high=mid-1;
   }
-  if(found<0||found===activeLyricIndex)return;
+  if(found<0)return;
+  if(found===activeLyricIndex){if(force){const current=$("#lyrics-lines").querySelector('[data-index="'+found+'"]');if(current)current.scrollIntoView({block:"center",behavior:"auto"})}return}
   const previous=activeLyricIndex;
   activeLyricIndex=found;
   const oldRow=previous>=0?$("#lyrics-lines").querySelector('[data-index="'+previous+'"]'):null;
@@ -236,6 +237,7 @@ function openLyrics(){
   $("#lyrics-panel").classList.add("show");
   $("#lyrics-panel").setAttribute("aria-hidden","false");
   if(!state.current)setLyricsStatus("先播放一首歌曲，再自动匹配歌词");
+  else syncLyrics(audio.currentTime||0,true);
 }
 function closeLyrics(){
   $("#lyrics-panel").classList.remove("show");
