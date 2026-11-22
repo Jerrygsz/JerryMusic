@@ -146,7 +146,7 @@ $("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"
 let lyricLines=[],lyricRequest=0,lastActiveLyric=-1;
 async function lookupLyrics(track){
  const id=++lyricRequest,panel=$("#lyrics-panel");panel.innerHTML='<div class="lyrics-placeholder">正在匹配国内歌词源…</div>';lyricLines=[];
- const renderLrc=lrc=>{lastActiveLyric=-1;lyricLines=(lrc||"").split(/\r?\n/).flatMap(line=>{const m=[...line.matchAll(/\[(\\d{2}):(\\d{2})(?:\.(\\d{1,3}))?\]/g)],text=line.replace(/\[[^\]]+\]/g,"").trim();return m.map(x=>({time:+x[1]*60 + +x[2] + (x[3]?+(x[3].padEnd(3,"0"))/1000:0),text}))}).filter(x=>x.text).sort((x,y)=>x.time-y.time);panel.innerHTML=lyricLines.length?lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join(""):'<div class="lyrics-placeholder">歌词未含时间轴</div>'};
+ const renderLrc=lrc=>{lastActiveLyric=-1;lyricLines=(lrc||"").split(/\r?\n/).map(line=>{const m=line.match(/^\[(\d+):(\d+(?:\.\d+)?)\]/);return m?{time:Number(m[1])*60+Number(m[2]),text:line.replace(/^\[[^\]]+\]/,"").trim()}:null}).filter(x=>x&&x.text).sort((x,y)=>x.time-y.time);panel.innerHTML=lyricLines.length?lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join(""):'<div class="lyrics-placeholder">歌词未含时间轴</div>'};
  const get=async url=>{const c=new AbortController(),timer=setTimeout(()=>c.abort(),6500);try{const r=await fetch(url,{signal:c.signal});if(!r.ok)throw Error();return await r.json()}finally{clearTimeout(timer)}};
  try{
   // 优先网易云公开检索接口，按歌名搜索后取对应 LRC
