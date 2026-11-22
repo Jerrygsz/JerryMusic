@@ -102,7 +102,7 @@ function renderTracks(items,target){
     if(action==="all"){state.selectedIds=allSelected?new Set():new Set(items.map(t=>String(t.id)));renderTracks(items,target);return}
     const chosen=items.filter(t=>state.selectedIds.has(String(t.id)));
     if(!chosen.length){toast("先选择歌曲");return}
-    if(action==="fav"){chosen.forEach(t=>{if(!isFav(t))state.favorites.unshift(t)});save();toast("已收藏 "+chosen.length+" 首")}
+    if(action==="fav"){chosen.forEach(t=>{if(!isFav(t))state.favorites.unshift(t)});save();toast("已收藏 "+chosen.length+" 首");renderTracks(items,target)}
     if(action==="playlist"){addManyToPlaylist(chosen);return}
     if(action==="remove"){
       if(target==="library-content")state.favorites=state.favorites.filter(t=>!state.selectedIds.has(String(t.id)));
@@ -145,6 +145,7 @@ function toggleFav(t){state.favorites=isFav(t)?state.favorites.filter(x=>x.id!==
 function playFrom(items,i){state.queue=[...items];state.index=i;loadCurrent()}
 async function loadCurrent(){
   const t=state.queue[state.index];if(!t)return;
+  if(typeof renderQueue==="function")renderQueue();
   const request=++playRequest;state.current=t;
   $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.source==="local"?" · 本地音乐":"");
   $("#player-fav").textContent=isFav(t)?"♥":"♡";
