@@ -60,7 +60,7 @@
     <div class="player" id="player">
       <div class="player-meta"><div class="cover-mini">♫</div><div class="track-meta"><strong id="now-title">还没有播放歌曲</strong><small id="now-artist">去发现页找点音乐</small></div><button class="icon-btn heart-btn" id="player-fav">♡</button></div>
       <div class="progress-wrap"><span id="current-time">0:00</span><input id="seek" type="range" min="0" max="1000" value="0"><span id="duration">0:00</span></div>
-      <div class="controls"><button id="prev-btn" aria-label="上一首">↶</button><button id="play-btn" class="play-btn" aria-label="播放">▶</button><button id="next-btn" aria-label="下一首">↷</button><button id="queue-btn" aria-label="播放队列">☷</button></div>
+      <div class="controls"><button id="prev-btn" aria-label="上一首">↶</button><button id="play-btn" class="play-btn" aria-label="播放">▶</button><button id="next-btn" aria-label="下一首">↷</button><button id="lyrics-btn" aria-label="歌词">词</button><button id="queue-btn" aria-label="播放队列">☷</button></div>
     </div>
     <nav class="bottom-nav">
       <button class="nav-item active" data-tab="home"><span>⌂</span>推荐</button>
@@ -74,11 +74,35 @@
     <div class="queue-head"><div><span class="eyebrow">UP NEXT</span><h2>播放队列 <small id="queue-count">0 首</small></h2></div><div class="queue-head-actions"><button id="queue-clear" class="text-btn" type="button">清空</button><button id="queue-close" class="icon-btn" type="button" aria-label="关闭播放队列">×</button></div></div>
     <div id="queue-items" class="queue-items"></div>
   </aside>
+  <aside id="lyrics-panel" class="lyrics-panel" aria-label="歌词" aria-hidden="true">
+    <div class="lyrics-head">
+      <div><span class="eyebrow">NOW PLAYING</span><strong id="lyrics-track">歌词</strong><small id="lyrics-status">等待播放</small></div>
+      <button id="lyrics-close" class="icon-btn" type="button" aria-label="关闭歌词">×</button>
+    </div>
+    <div id="lyrics-lines" class="lyrics-lines"><div class="lyrics-empty">播放歌曲后自动匹配歌词</div></div>
+  </aside>
   <audio id="audio" preload="metadata"></audio>
   <div id="toast" class="toast"></div>
   <script type="module">
-    import "./local-music-bridge.js";
-    import "./app.js";
+    // The native bridge is optional: a bridge import failure must never prevent
+    // the core music-player UI and its button handlers from starting.
+    try {
+      await import("./local-music-bridge.js");
+    } catch (error) {
+      console.error("[JerryMusic] Native local-music bridge failed to load:", error);
+      window.__JERRY_LOCAL_MUSIC_BRIDGE_ERROR__ = String(error?.stack || error);
+    }
+
+    try {
+      await import("./app.js");
+    } catch (error) {
+      console.error("[JerryMusic] App startup failed:", error);
+      const toast = document.getElementById("toast");
+      if (toast) {
+        toast.textContent = "启动失败，请重新打开 APP；错误：" + (error?.message || error);
+        toast.classList.add("show");
+      }
+    }
   </script>
 </body>
 </html>

@@ -21,6 +21,11 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.ArrayDeque;
 import java.util.Locale;
 import org.json.JSONObject;
@@ -109,7 +114,21 @@ public class LocalMusicPlugin extends Plugin {
                 DocumentFile current = stack.removeLast();
                 visited++;
                 if (!current.isDirectory()) continue;
-                for (DocumentFile child : current.listFiles()) {
+                DocumentFile[] children = current.listFiles();
+                Map<String, DocumentFile> sidecarLyrics = new HashMap<>();
+                for (DocumentFile child : children) {
+                    if (child.isFile() && child.getName() != null && child.getName().toLowerCase(Locale.ROOT).endsWith(".lrc")) {
+                        String lrcName = child.getName();
+                        String lrcBase = lrcName.substring(0, lrcName.length() - 4).toLowerCase(Locale.ROOT);
+                        if (!sidecarLyrics.containsKey(lrcBase)) sidecarLyrics.put(lrcBase, child);
+                        int audioExtensionAt = lrcBase.lastIndexOf('.');
+                        if (audioExtensionAt > 0) {
+                            String withoutAudioExtension = lrcBase.substring(0, audioExtensionAt);
+                            if (!sidecarLyrics.containsKey(withoutAudioExtension)) sidecarLyrics.put(withoutAudioExtension, child);
+                        }
+                    }
+                }
+                for (DocumentFile child : children) {
                     if (child.isDirectory()) {
                         stack.add(child);
                     } else if (child.isFile() && isAudioFile(child)) {
@@ -127,6 +146,11 @@ public class LocalMusicPlugin extends Plugin {
                             item.put("durationMs", metadata[2]);
                             item.put("source", "local");
                             item.put("size", child.length());
+                            String audioName = name;
+                            int extensionAt = audioName.lastIndexOf('.');
+                            String audioBase = (extensionAt > 0 ? audioName.substring(0, extensionAt) : audioName).toLowerCase(Locale.ROOT);
+                            DocumentFile sidecar = sidecarLyrics.get(audioBase);
+                            if (sidecar != null) item.put("lyricsUri", sidecar.getUri().toString());
                             found.put(item);
                             matches++;
                         }
@@ -143,6 +167,41 @@ public class LocalMusicPlugin extends Plugin {
             call.reject("Folder permission expired. Please choose the folder again.", e);
         } catch (Exception e) {
             call.reject("Could not scan this folder: " + e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod
+    public void readLyricsFile(PluginCall call) {
+        String rawUri = call.getString("uri");
+        if (rawUri == null || rawUri.isEmpty()) {
+            call.reject("Missing lyrics file URI");
+            return;
+        }
+        try (InputStream input = getContext().getContentResolver().openInputStream(Uri.parse(rawUri));
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            if (input == null) {
+                call.reject("Cannot open local lyrics file");
+                return;
+            }
+            byte[] buffer = new byte[8192];
+            int count;
+            int total = 0;
+            while ((count = input.read(buffer)) != -1) {
+                total += count;
+                if (total > 512 * 1024) {
+                    call.reject("Lyrics file is larger than 512 KB");
+                    return;
+                }
+                output.write(buffer, 0, count);
+            }
+            byte[] bytes = output.toByteArray();
+            String lyrics = new String(bytes, StandardCharsets.UTF_8);
+            if (lyrics.indexOf('\uFFFD') >= 0) lyrics = new String(bytes, Charset.forName("GB18030"));
+            JSObject response = new JSObject();
+            response.put("text", lyrics);
+            call.resolve(response);
+        } catch (Exception e) {
+            call.reject("Could not read local lyrics file: " + e.getMessage(), e);
         }
     }
 
