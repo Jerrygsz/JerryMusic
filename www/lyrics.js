@@ -72,7 +72,7 @@ function writeCache(cache) {
 
 function cacheKey(track) {
   const duration = durationSeconds(track);
-  return [track.title, track.artist, track.album || "", duration ? Math.round(duration) : ""].map(normalize).join("|");
+  return [track.title, track.artist, track.album || "", duration ? Math.round(duration) : "", track.lyricsUri ? "sidecar" : ""].map(normalize).join("|");
 }
 
 function durationSeconds(track) {
@@ -137,6 +137,16 @@ async function request(url, timeoutMs = 7000) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fromLocalSidecar(track) {
+  if (!track.lyricsUri || !window.JerryLocalMusic?.readLyricsFile) return null;
+  const response = await window.JerryLocalMusic.readLyricsFile({ uri: track.lyricsUri });
+  const text = String(response?.text || "");
+  const lines = parseLrc(text);
+  return lines.length
+    ? { lines, synced: true, plainLyrics: lines.map(line => line.text).join("\n"), source: "本地 LRC 文件", instrumental: false }
+    : null;
 }
 
 async function fromLrclib(track) {
@@ -209,6 +219,19 @@ export class LyricsEngine {
     const cache = readCache();
     const cached = cache[key];
     if (cached && Date.now() - cached.savedAt < (cached.value ? CACHE_TTL : NEGATIVE_CACHE_TTL)) return cached.value || null;
+
+    if (track.source === "local" && track.lyricsUri) {
+      try {
+        const local = await fromLocalSidecar(track);
+        if (local) {
+          cache[key] = { savedAt: Date.now(), value: local };
+          writeCache(cache);
+          return local;
+        }
+      } catch (error) {
+        console.warn("[JerryMusic lyrics] local LRC failed:", error?.message || error);
+      }
+    }
 
     const providers = [
       ["LRCLIB", () => fromLrclib(track)],
