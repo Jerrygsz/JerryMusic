@@ -7,10 +7,18 @@ let lastRequestAt = 0;
 
 function normalize(value) {
   return String(value || "").toLowerCase()
-    .replace(/\\([^)]*\\)|（[^）]*）|\\[[^\\]]*\\]|【[^】]*】/g, " ")
-    .replace(/\\b(feat\\.?|featuring|ft\\.?|with)\\b/gi, " ")
-    .replace(/\\b(official|audio|video|music video|lyrics|lyric|remastered|live|demo|完整版|官方版|伴奏|纯音乐)\\b/gi, " ")
-    .replace(/[\\s_]+/g, " ").replace(/[^\\p{L}\\p{N}]+/gu, "");
+    .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】】]*】/g, " ")
+    .replace(/\b(feat\.?|featuring|ft\.?|with)\b/gi, " ")
+    .replace(/\b(official|audio|video|music video|lyrics|lyric|remastered|live|demo|完整版|官方版|伴奏|纯音乐)\b/gi, " ")
+    .replace(/[\s_]+/g, " ").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+function titleVariants(value) {
+  const raw=String(value||"").trim();
+  const cleaned=raw.replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g," ")
+    .replace(/\b(official|audio|video|lyrics|lyric|remastered|live|demo)\b/gi," ")
+    .replace(/\s+/g," ").trim();
+  const dash=raw.split(/\s[-–—]\s/)[0].trim();
+  return [...new Set([raw,cleaned,dash].filter(Boolean))];
 }
 function titleVariants(value) {
   const raw=String(value||"").trim();
