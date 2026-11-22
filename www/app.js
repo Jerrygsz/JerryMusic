@@ -132,13 +132,18 @@ function renderTracks(items,target){
   });
 }
 function addManyToPlaylist(items){
-  if(!state.playlists.length){state.playlists.push({id:Date.now().toString(),name:"稍后再听",tracks:[]})}
-  const choices=state.playlists.map((p,i)=>(i+1)+". "+p.name).join("\n");
-  const answer=window.prompt("输入要加入的歌单编号：\n"+choices,"1");
-  if(answer===null)return;
-  const p=state.playlists[Number(answer)-1];if(!p){toast("歌单编号无效");return}
-  items.forEach(t=>{if(!p.tracks.some(x=>x.id===t.id))p.tracks.push(t)});
-  save();toast("已加入「"+p.name+"」 "+items.length+" 首");
+  if(!state.playlists.length)state.playlists.push({id:Date.now().toString(),name:"稍后再听",tracks:[]});
+  const modal=document.createElement("div");modal.className="playlist-picker-overlay";
+  modal.innerHTML='<div class="playlist-picker" role="dialog" aria-modal="true" aria-label="选择目标歌单"><div class="picker-head"><strong>加入到歌单</strong><button type="button" data-picker-close aria-label="关闭">×</button></div><p>已选择 '+items.length+' 首歌曲</p><select aria-label="目标歌单">'+state.playlists.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("")+'</select><div class="picker-actions"><button type="button" data-picker-close>取消</button><button type="button" data-picker-confirm>确认加入</button></div></div>';
+  document.body.appendChild(modal);
+  const close=()=>modal.remove();
+  modal.querySelectorAll("[data-picker-close]").forEach(b=>b.onclick=close);
+  modal.onclick=e=>{if(e.target===modal)close()};
+  modal.querySelector("[data-picker-confirm]").onclick=()=>{
+    const p=state.playlists.find(x=>x.id===modal.querySelector("select").value);if(!p)return;
+    items.forEach(t=>{if(!p.tracks.some(x=>x.id===t.id))p.tracks.push(t)});
+    save();close();toast("已加入「"+p.name+"」 "+items.length+" 首");
+  };
 }
 function isFav(t){return state.favorites.some(x=>x.id===t.id)}
 function toggleFav(t){state.favorites=isFav(t)?state.favorites.filter(x=>x.id!==t.id):[t,...state.favorites];save();renderLibrary();if(state.current?.id===t.id)$("#player-fav").textContent=isFav(t)?"♥":"♡";toast(isFav(t)?"已加入收藏":"已取消收藏")}
