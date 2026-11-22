@@ -112,10 +112,10 @@ async function request(url, timeoutMs = 7000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { "Lrclib-Client": "JerryMusic/1.1 (https://github.com/Jerrygsz/JerryMusic)" }
-    });
+    const headers = url.startsWith("https://lrclib.net/")
+      ? { "Lrclib-Client": "JerryMusic/1.1 (https://github.com/Jerrygsz/JerryMusic)" }
+      : undefined;
+    const response = await fetch(url, { signal: controller.signal, headers });
     if (response.status === 429) {
       const retry = Number(response.headers.get("Retry-After") || 0);
       throw new Error(retry ? "歌词服务请求过于频繁，请稍后再试" : "歌词服务请求过于频繁");
