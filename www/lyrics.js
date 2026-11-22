@@ -7,7 +7,7 @@ let lastRequestAt = 0;
 
 function normalize(value) {
   return String(value || "").toLowerCase()
-    .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】】]*】/g, " ")
+    .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g, " ")
     .replace(/\b(feat\.?|featuring|ft\.?|with)\b/gi, " ")
     .replace(/\b(official|audio|video|music video|lyrics|lyric|remastered|live|demo|完整版|官方版|伴奏|纯音乐)\b/gi, " ")
     .replace(/[\s_]+/g, " ").replace(/[^\p{L}\p{N}]+/gu, "");
@@ -18,14 +18,6 @@ function titleVariants(value) {
     .replace(/\b(official|audio|video|lyrics|lyric|remastered|live|demo)\b/gi," ")
     .replace(/\s+/g," ").trim();
   const dash=raw.split(/\s[-–—]\s/)[0].trim();
-  return [...new Set([raw,cleaned,dash].filter(Boolean))];
-}
-function titleVariants(value) {
-  const raw=String(value||"").trim();
-  const cleaned=raw.replace(/\\([^)]*\\)|（[^）]*）|\\[[^\\]]*\\]|【[^】]*】/g," ")
-    .replace(/\\b(official|audio|video|lyrics|lyric|remastered|live|demo)\\b/gi," ")
-    .replace(/\\s+/g," ").trim();
-  const dash=raw.split(/\\s[-–—]\\s/)[0].trim();
   return [...new Set([raw,cleaned,dash].filter(Boolean))];
 }
 
@@ -186,7 +178,7 @@ async function fromLrcCx(track) {
       if(Array.isArray(records)&&records.length){const ranked=records.map(record=>({record,...candidateScore(record,track)})).sort((a,b)=>b.score-a.score);const best=ranked[0];
         if(best&&best.titleScore>=0.65&&(!track.artist||track.artist==="本地音乐"||best.artistScore>=0.30)){const result=resultFrom({lyrics:best.record.lyrics},"LrcAPI");if(result)return result;}}
     }catch(error){console.warn("[JerryMusic lyrics] LrcAPI search failed:",error?.message||error)}
-    try{const single=await request("https://api.lrc.cx/api/v1/lyrics/single?"+params.toString(),8000);const lines=parseLrc((await single.text()).trim());if(lines.length)return {lines,synced:true,plainLyrics:lines.map(line=>line.text).join("\\n"),source:"LrcAPI",instrumental:false};}catch(error){console.warn("[JerryMusic lyrics] LrcAPI single failed:",error?.message||error)}
+    try{const single=await request("https://api.lrc.cx/api/v1/lyrics/single?"+params.toString(),8000);const lines=parseLrc((await single.text()).trim());if(lines.length)return {lines,synced:true,plainLyrics:lines.map(line=>line.text).join("\n"),source:"LrcAPI",instrumental:false};}catch(error){console.warn("[JerryMusic lyrics] LrcAPI single failed:",error?.message||error)}
   }return null;
 }
 
