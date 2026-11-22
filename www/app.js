@@ -7,7 +7,7 @@ const state={
   favorites:JSON.parse(localStorage.getItem("jm_favorites")||"[]"),
   playlists:JSON.parse(localStorage.getItem("jm_playlists")||"[]"),
   recent:JSON.parse(localStorage.getItem("jm_recent")||"[]"),
-  localFolder:null
+  localFolder:null,selectionTarget:null,selectedIds:new Set(),activePlaylistId:null
 };
 let playRequest=0;
 const save=()=>{localStorage.setItem("jm_favorites",JSON.stringify(state.favorites));localStorage.setItem("jm_playlists",JSON.stringify(state.playlists));localStorage.setItem("jm_recent",JSON.stringify(state.recent))};
@@ -91,8 +91,54 @@ $("#local-search-form").addEventListener("submit",e=>{e.preventDefault();searchL
 function renderTracks(items,target){
   const el=$("#"+target);
   if(!items.length){el.innerHTML='<div class="empty-note">这里暂时还没有内容</div>';return}
-  el.innerHTML=items.map((t,i)=>'<div class="track"><div class="track-cover">♫</div><div class="track-info"><strong>'+esc(t.title)+'</strong><small>'+esc(t.artist)+(t.year?" · "+esc(t.year):"")+(t.source==="local"?" · 本地":"")+'</small></div><div class="track-actions"><button data-action="play" data-index="'+i+'" title="播放">▶</button><button data-action="fav" data-index="'+i+'" title="收藏">'+(isFav(t)?"♥":"♡")+'</button><button data-action="add" data-index="'+i+'" title="加入歌单">＋</button></div></div>').join("");
-  el.querySelectorAll("button").forEach(b=>b.onclick=()=>{const t=items[+b.dataset.index];if(b.dataset.action==="play")playFrom(items,+b.dataset.index);if(b.dataset.action==="fav")toggleFav(t);if(b.dataset.action==="add")addToPlaylist(t)});
+  const selected=state.selectionTarget===target?state.selectedIds:new Set();
+  const allSelected=items.length>0&&items.every(t=>selected.has(String(t.id)));
+  const toolbar='<div class="bulk-toolbar"><button data-bulk="toggle">'+(state.selectionTarget===target?'退出多选':'多选')+'</button>'+(state.selectionTarget===target?'<button data-bulk="all">'+(allSelected?'取消全选':'全选')+'</button><button data-bulk="fav">批量收藏</button><button data-bulk="playlist">加入歌单</button><button data-bulk="remove">移出列表</button><span>已选 '+selected.size+'</span>':'')+'</div>';
+  el.innerHTML=toolbar+items.map((t,i)=>'<div class="track '+(selected.has(String(t.id))?'is-selected':'')+'" data-row-index="'+i+'"><button class="track-select" data-action="select" data-index="'+i+'" aria-label="选择歌曲">'+(selected.has(String(t.id))?'✓':'')+'</button><div class="track-cover">♫</div><div class="track-info"><strong>'+esc(t.title)+'</strong><small>'+esc(t.artist)+(t.year?" · "+esc(t.year):"")+(t.source==="local"?" · 本地":"")+'</small></div><div class="track-actions"><button data-action="play" data-index="'+i+'" title="播放">▶</button><button data-action="fav" data-index="'+i+'" title="收藏">'+(isFav(t)?"♥":"♡")+'</button><button data-action="add" data-index="'+i+'" title="加入歌单">＋</button></div></div>').join("");
+  el.querySelectorAll("[data-bulk]").forEach(b=>b.onclick=()=>{
+    const action=b.dataset.bulk;
+    if(action==="toggle"){state.selectionTarget=state.selectionTarget===target?null:target;state.selectedIds=new Set();renderTracks(items,target);return}
+    if(state.selectionTarget!==target)return;
+    if(action==="all"){state.selectedIds=allSelected?new Set():new Set(items.map(t=>String(t.id)));renderTracks(items,target);return}
+    const chosen=items.filter(t=>state.selectedIds.has(String(t.id)));
+    if(!chosen.length){toast("先选择歌曲");return}
+    if(action==="fav"){chosen.forEach(t=>{if(!isFav(t))state.favorites.unshift(t)});save();toast("已收藏 "+chosen.length+" 首")}
+    if(action==="playlist"){addManyToPlaylist(chosen);return}
+    if(action==="remove"){
+      if(target==="library-content")state.favorites=state.favorites.filter(t=>!state.selectedIds.has(String(t.id)));
+      else if(target==="playlist-tracks"&&state.activePlaylistId){const p=state.playlists.find(x=>x.id===state.activePlaylistId);if(p)p.tracks=p.tracks.filter(t=>!state.selectedIds.has(String(t.id)))}
+      else if(target==="recent-list")state.recent=state.recent.filter(t=>!state.selectedIds.has(String(t.id)));
+      else if(target==="results-list")state.results=state.results.filter(t=>!state.selectedIds.has(String(t.id)));
+      else {toast("此列表暂不支持移除");return}
+      save();toast("已从当前列表移除 "+chosen.length+" 首")
+    }
+    state.selectedIds=new Set();state.selectionTarget=null;
+    if(target==="library-content"||target==="recent-list")renderLibrary();
+    else if(target==="playlist-tracks"){const p=state.playlists.find(x=>x.id===state.activePlaylistId);renderTracks(p?.tracks||[],target)}
+    else renderTracks(target==="results-list"?state.results:items.filter(t=>!chosen.includes(t)),target);
+  });
+  el.querySelectorAll(".track").forEach(row=>row.onclick=e=>{
+    if(e.target.closest("button"))return;
+    const i=+row.dataset.rowIndex;
+    if(state.selectionTarget===target){const id=String(items[i].id);state.selectedIds.has(id)?state.selectedIds.delete(id):state.selectedIds.add(id);renderTracks(items,target)}
+    else playFrom(items,i);
+  });
+  el.querySelectorAll(".track-actions button,.track-select").forEach(b=>b.onclick=e=>{
+    e.stopPropagation();const t=items[+b.dataset.index];
+    if(b.dataset.action==="play")playFrom(items,+b.dataset.index);
+    if(b.dataset.action==="fav")toggleFav(t);
+    if(b.dataset.action==="add")addToPlaylist(t);
+    if(b.dataset.action==="select"){if(state.selectionTarget!==target){state.selectionTarget=target;state.selectedIds=new Set()}const id=String(t.id);state.selectedIds.has(id)?state.selectedIds.delete(id):state.selectedIds.add(id);renderTracks(items,target)}
+  });
+}
+function addManyToPlaylist(items){
+  if(!state.playlists.length){state.playlists.push({id:Date.now().toString(),name:"稍后再听",tracks:[]})}
+  const choices=state.playlists.map((p,i)=>(i+1)+". "+p.name).join("\n");
+  const answer=window.prompt("输入要加入的歌单编号：\n"+choices,"1");
+  if(answer===null)return;
+  const p=state.playlists[Number(answer)-1];if(!p){toast("歌单编号无效");return}
+  items.forEach(t=>{if(!p.tracks.some(x=>x.id===t.id))p.tracks.push(t)});
+  save();toast("已加入「"+p.name+"」 "+items.length+" 首");
 }
 function isFav(t){return state.favorites.some(x=>x.id===t.id)}
 function toggleFav(t){state.favorites=isFav(t)?state.favorites.filter(x=>x.id!==t.id):[t,...state.favorites];save();renderLibrary();if(state.current?.id===t.id)$("#player-fav").textContent=isFav(t)?"♥":"♡";toast(isFav(t)?"已加入收藏":"已取消收藏")}
@@ -123,7 +169,20 @@ audio.onplay=()=>$("#play-btn").textContent="Ⅱ";audio.onpause=()=>$("#play-btn
 audio.ontimeupdate=()=>{if(audio.duration){$("#seek").value=audio.currentTime/audio.duration*1000;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration)}};
 $("#seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("#seek").value/1000)};
 $("#player-fav").onclick=()=>state.current&&toggleFav(state.current);
-$("#queue-btn").onclick=()=>toast(state.queue.length?"当前队列 "+(state.index+1)+"/"+state.queue.length:"播放队列为空");
+function renderQueue(){
+  $("#queue-count").textContent=state.queue.length+" 首";
+  const root=$("#queue-items");
+  if(!state.queue.length){root.innerHTML='<div class="empty-note">播放队列还是空的，先选几首喜欢的音乐吧。</div>';return}
+  root.innerHTML=state.queue.map((t,i)=>'<div class="queue-track '+(i===state.index?'playing':'')+'" data-queue-index="'+i+'"><span class="queue-number">'+(i===state.index?'♫':String(i+1).padStart(2,'0'))+'</span><div class="queue-track-info"><strong>'+esc(t.title)+'</strong><small>'+esc(t.artist)+'</small></div><button data-queue-remove="'+i+'" aria-label="移除歌曲">×</button></div>').join("");
+  root.querySelectorAll(".queue-track").forEach(row=>row.onclick=e=>{if(e.target.closest("[data-queue-remove]"))return;state.index=+row.dataset.queueIndex;loadCurrent();renderQueue()});
+  root.querySelectorAll("[data-queue-remove]").forEach(b=>b.onclick=e=>{e.stopPropagation();const i=+b.dataset.queueRemove;state.queue.splice(i,1);if(i<state.index)state.index--;else if(i===state.index){if(state.queue.length){state.index=Math.min(i,state.queue.length-1);loadCurrent()}else{state.index=-1;state.current=null;audio.pause();audio.removeAttribute("src");$("#now-title").textContent="还没有播放歌曲";$("#now-artist").textContent="去发现页找点音乐"}}renderQueue()});
+}
+function openQueue(){renderQueue();$("#queue-overlay").classList.add("show");$("#queue-drawer").classList.add("show");$("#queue-drawer").setAttribute("aria-hidden","false");$("#queue-overlay").setAttribute("aria-hidden","false")}
+function closeQueue(){$("#queue-overlay").classList.remove("show");$("#queue-drawer").classList.remove("show");$("#queue-drawer").setAttribute("aria-hidden","true");$("#queue-overlay").setAttribute("aria-hidden","true")}
+$("#queue-btn").onclick=openQueue;$("#queue-close").onclick=closeQueue;$("#queue-overlay").onclick=closeQueue;
+$("#queue-clear").onclick=()=>{state.queue=[];state.index=-1;state.current=null;audio.pause();audio.removeAttribute("src");$("#now-title").textContent="还没有播放歌曲";$("#now-artist").textContent="去发现页找点音乐";renderQueue();toast("播放队列已清空")};
+let touchStartY=0;$("#queue-drawer").addEventListener("touchstart",e=>{touchStartY=e.touches[0].clientY},{passive:true});
+$("#queue-drawer").addEventListener("touchend",e=>{const delta=e.changedTouches[0].clientY-touchStartY;if(delta>75)closeQueue()},{passive:true});
 function renderRecent(){renderTracks(state.recent.slice(0,5),"recent-list")}
 function renderLibrary(){
   const root=$("#library-content");$$("[data-library]").forEach(b=>b.classList.toggle("selected",b.dataset.library===state.libraryTab));
@@ -137,5 +196,5 @@ function renderLibrary(){
 }
 $$("[data-library]").forEach(b=>b.onclick=()=>{state.libraryTab=b.dataset.library;renderLibrary()});
 function addToPlaylist(t){if(!state.playlists.length)state.playlists.push({id:Date.now().toString(),name:"稍后再听",tracks:[]});const p=state.playlists[state.playlists.length-1];if(!p.tracks.some(x=>x.id===t.id))p.tracks.push(t);save();toast("已加入「"+p.name+"」")}
-function openPlaylist(id){const p=state.playlists.find(x=>x.id===id);if(!p)return;$("#library-content").innerHTML='<div class="section-head"><h2>'+esc(p.name)+'</h2><button class="text-btn" id="back-playlists">返回</button></div><div id="playlist-tracks"></div>';$("#back-playlists").onclick=renderLibrary;renderTracks(p.tracks,"playlist-tracks")}
+function openPlaylist(id){const p=state.playlists.find(x=>x.id===id);if(!p)return;state.activePlaylistId=id;state.selectionTarget=null;state.selectedIds=new Set();$("#library-content").innerHTML='<div class="section-head"><h2>'+esc(p.name)+'</h2><button class="text-btn" id="back-playlists">返回</button></div><div id="playlist-tracks"></div>';$("#back-playlists").onclick=renderLibrary;renderTracks(p.tracks,"playlist-tracks")}
 renderRecent();renderLibrary();renderLocalFolder();loadSavedLocalFolder();
