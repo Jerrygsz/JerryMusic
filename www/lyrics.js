@@ -5,9 +5,9 @@ const MAX_CACHE_ITEMS = 80;
 function normalize(value) {
   return String(value || "")
     .toLowerCase()
-    .replace(/\\([^)]*\\)|（[^）]*）|\\[[^\\]]*\\]|【[^】]*】/g, " ")
-    .replace(/feat\\.?|featuring|ft\\.?/g, " ")
-    .replace(/[^\\p{L}\\p{N}]+/gu, "");
+    .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g, " ")
+    .replace(/feat\.?|featuring|ft\.?/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 function similarity(a, b) {
@@ -29,14 +29,14 @@ function similarity(a, b) {
 
 export function parseLrc(input) {
   const text = String(input || "");
-  const offsetMatch = text.match(/\\[offset:([+-]?\\d+)\\]/i);
+  const offsetMatch = text.match(/\[offset:([+-]?\d+)\]/i);
   const offset = offsetMatch ? Number(offsetMatch[1]) / 1000 : 0;
   const lines = [];
-  const stamp = /\\[(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?\\]/g;
-  for (const raw of text.split(/\\r?\\n/)) {
+  const stamp = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+  for (const raw of text.split(/\r?\n/)) {
     const matches = [...raw.matchAll(stamp)];
     const content = raw.replace(stamp, "").trim();
-    if (!content || /^\\[(ar|ti|al|by|re|ve|length|offset|kana|la|tool):/i.test(raw)) continue;
+    if (!content || /^\[(ar|ti|al|by|re|ve|length|offset|kana|la|tool):/i.test(raw)) continue;
     if (!matches.length) continue;
     for (const match of matches) {
       const fraction = match[3] || "0";
@@ -50,7 +50,7 @@ export function parseLrc(input) {
 }
 
 function plainLines(value) {
-  return String(value || "").split(/\\r?\\n/).map(text => text.trim()).filter(Boolean).map(text => ({ time: null, text }));
+  return String(value || "").split(/\r?\n/).map(text => text.trim()).filter(Boolean).map(text => ({ time: null, text }));
 }
 
 function readCache() {
@@ -101,7 +101,7 @@ function resultFrom(record, provider) {
   return {
     lines: fallback,
     synced: lines.length > 0,
-    plainLyrics: plain || fallback.map(line => line.text).join("\\n"),
+    plainLyrics: plain || fallback.map(line => line.text).join("\n"),
     source: provider,
     instrumental: !!record.instrumental
   };
@@ -157,7 +157,11 @@ async function fromLrclib(track) {
 }
 
 async function fromLrcCx(track) {
-  const params = new URLSearchParams({ title: track.title || "", artist: track.artist === "本地音乐" ? "" : (track.artist || ""), album: track.album || "" });
+  const params = new URLSearchParams({
+    title: track.title || "",
+    artist: track.artist === "本地音乐" ? "" : (track.artist || ""),
+    album: track.album || ""
+  });
   const response = await request("https://api.lrc.cx/api/v1/lyrics/advance?" + params.toString(), 8000);
   const records = await response.json();
   if (Array.isArray(records) && records.length) {
@@ -171,7 +175,7 @@ async function fromLrcCx(track) {
   const single = await request("https://api.lrc.cx/api/v1/lyrics/single?" + params.toString(), 8000);
   const lrc = (await single.text()).trim();
   const lines = parseLrc(lrc);
-  return lines.length ? { lines, synced: true, plainLyrics: lines.map(line => line.text).join("\\n"), source: "LrcAPI", instrumental: false } : null;
+  return lines.length ? { lines, synced: true, plainLyrics: lines.map(line => line.text).join("\n"), source: "LrcAPI", instrumental: false } : null;
 }
 
 async function fromLyricsOvh(track) {
