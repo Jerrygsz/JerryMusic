@@ -84,8 +84,25 @@
   <audio id="audio" preload="metadata"></audio>
   <div id="toast" class="toast"></div>
   <script type="module">
-    import "./local-music-bridge.js";
-    import "./app.js";
+    // The native bridge is optional: a bridge import failure must never prevent
+    // the core music-player UI and its button handlers from starting.
+    try {
+      await import("./local-music-bridge.js");
+    } catch (error) {
+      console.error("[JerryMusic] Native local-music bridge failed to load:", error);
+      window.__JERRY_LOCAL_MUSIC_BRIDGE_ERROR__ = String(error?.stack || error);
+    }
+
+    try {
+      await import("./app.js");
+    } catch (error) {
+      console.error("[JerryMusic] App startup failed:", error);
+      const toast = document.getElementById("toast");
+      if (toast) {
+        toast.textContent = "启动失败，请重新打开 APP；错误：" + (error?.message || error);
+        toast.classList.add("show");
+      }
+    }
   </script>
 </body>
 </html>
