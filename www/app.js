@@ -247,13 +247,13 @@ function syncLyrics(seconds,force=false){
   if(row){row.classList.add("active");if($("#lyrics-panel").classList.contains("show"))row.scrollIntoView({block:"center",behavior:force?"auto":"smooth"})}
 }
 function openLyrics(){
-  $("#lyrics-panel").classList.add("show");
+  $("#lyrics-panel").classList.add("show");$("#lyrics-overlay").classList.add("show");
   $("#lyrics-panel").setAttribute("aria-hidden","false");
   if(!state.current)setLyricsStatus("先播放一首歌曲，再自动匹配歌词");
   else syncLyrics(audio.currentTime||0,true);
 }
 function closeLyrics(){
-  $("#lyrics-panel").classList.remove("show");
+  $("#lyrics-panel").classList.remove("show");$("#lyrics-overlay").classList.remove("show");
   $("#lyrics-panel").setAttribute("aria-hidden","true");
 }
 $("#lyrics-btn").onclick=()=>$("#lyrics-panel").classList.contains("show")?closeLyrics():openLyrics();
