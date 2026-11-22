@@ -143,7 +143,7 @@ function setupEQ(){
 }
 function setEQ(low,mid,high){setupEQ();if(!eqContext)return;if(eqContext.state==="suspended")eqContext.resume();eqLow.gain.value=low;eqMid.gain.value=mid;eqHigh.gain.value=high;$("#eq-low").value=low;$("#eq-mid").value=mid;$("#eq-high").value=high}
 ["low","mid","high"].forEach(k=>$("#eq-"+k).oninput=()=>setEQ(+$("#eq-low").value,+$("#eq-mid").value,+$("#eq-high").value));
-$("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"?[8,3,0]:p==="vocal"?[-3,6,2]:p==="treble"?[0,2,8]:[0,0,0];setEQ(...v);$("[data-eq]").forEach(x=>x.classList.toggle("eq-selected",x===b));toast(({flat:"原声",bass:"低音增强",vocal:"人声增强",treble:"高音增强"})[p]+" 已应用")});
+$$("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"?[8,3,0]:p==="vocal"?[-3,6,2]:p==="treble"?[0,2,8]:[0,0,0];setEQ(...v);$$("[data-eq]").forEach(x=>x.classList.toggle("eq-selected",x===b));toast(({flat:"原声",bass:"低音增强",vocal:"人声增强",treble:"高音增强"})[p]+" 已应用")});
 let lyricLines=[],lyricRequest=0,lastActiveLyric=-1;
 const lyricCacheKey=(title,artist)=>"jm_lyrics_"+(String(title||"").trim().toLowerCase()+"|"+String(artist||"").trim().toLowerCase());
 function renderLyricResult(item,title,artist){
