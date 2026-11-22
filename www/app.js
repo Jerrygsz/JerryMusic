@@ -7,17 +7,18 @@ const state={
   favorites:JSON.parse(localStorage.getItem("jm_favorites")||"[]"),
   playlists:JSON.parse(localStorage.getItem("jm_playlists")||"[]"),
   recent:JSON.parse(localStorage.getItem("jm_recent")||"[]"),
-  localFolder:null,selectionTarget:null,selectedIds:new Set(),activePlaylistId:null
+  localFolder:null,selectionTarget:null,selectedIds:new Set(),activePlaylistId:null,homeLocalTracks:JSON.parse(localStorage.getItem("jm_local_tracks")||"[]")
 };
 let playRequest=0;
 const save=()=>{localStorage.setItem("jm_favorites",JSON.stringify(state.favorites));localStorage.setItem("jm_playlists",JSON.stringify(state.playlists));localStorage.setItem("jm_recent",JSON.stringify(state.recent))};
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const toast=s=>{const t=$("#toast");t.textContent=s;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)};
 const fmt=n=>{if(!Number.isFinite(n))return"0:00";return Math.floor(n/60)+":"+String(Math.floor(n%60)).padStart(2,"0")};
-function switchTab(tab){$$(".view").forEach(v=>v.classList.toggle("active",v.id===tab+"-view"));$$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));if(tab==="library")renderLibrary();if(tab==="home")renderRecent()}
+function switchTab(tab){$(".view").forEach(v=>v.classList.toggle("active",v.id===tab+"-view"));$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));if(tab==="library")renderLibrary();if(tab==="home"){renderRecent();renderLocalHome()}}
 $$(".nav-item").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 $$("[data-tab]").filter(b=>!b.classList.contains("nav-item")).forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 $("#search-focus").onclick=()=>{switchTab("search");$("#search-input").focus()};
+$("#local-home-more").onclick=()=>{switchTab("search");setSearchSource("local");if(state.localFolder)searchLocal("");else chooseLocalFolder()};
 $("#discover-btn").onclick=()=>{switchTab("search");setSearchSource("online");$("#search-input").value="indie music";searchOnline("indie music")};
 
 function setSearchSource(source){
@@ -83,7 +84,10 @@ async function searchLocal(q){
     const result=await LocalMusic.searchLocalMusic({query:q||""});
     const items=(result.tracks||[]).map(t=>({...t,source:"local"}));
     state.results=items;renderTracks(items,"results-list");
-    $("#search-status").textContent=items.length?("找到 "+items.length+" 首本地音乐 · 文件只保留在你的手机上"):"没有找到匹配音乐；支持 MP3、M4A、AAC、FLAC、WAV、OGG";
+    if(!q.trim()&&items.length){state.homeLocalTracks=items;try{localStorage.setItem("jm_local_tracks",JSON.stringify(items))}catch(e){toast("本地推荐缓存空间不足")}}
+    const detail="已检查 "+(result.audioScanned??items.length)+" 个音频文件";
+    const limit=result.truncated?" · 本次结果达到扫描上限，缩小文件夹范围或增加关键词可继续查找":"";
+    $("#search-status").textContent=items.length?("找到 "+items.length+" 首本地音乐 · "+detail+limit):("没有找到匹配音乐 · "+detail+"；支持 MP3、M4A、AAC、FLAC、WAV、OGG");
   }catch(e){$("#search-status").textContent="读取本地音乐失败："+(e.message||e)}
 }
 $("#local-search-form").addEventListener("submit",e=>{e.preventDefault();searchLocal($("#local-search-input").value.trim())});
@@ -190,6 +194,11 @@ $("#queue-clear").onclick=()=>{state.queue=[];state.index=-1;state.current=null;
 let touchStartY=0;$("#queue-drawer").addEventListener("touchstart",e=>{touchStartY=e.touches[0].clientY},{passive:true});
 $("#queue-drawer").addEventListener("touchend",e=>{const delta=e.changedTouches[0].clientY-touchStartY;if(delta>75)closeQueue()},{passive:true});
 function renderRecent(){renderTracks(state.recent.slice(0,5),"recent-list")}
+function renderLocalHome(){
+  const root=$("#local-home-list");if(!root)return;
+  if(!state.homeLocalTracks.length){root.innerHTML='<div class="local-home-empty"><span>♫</span><div><strong>你的本地音乐还没登场</strong><small>选一次音乐文件夹，之后打开首页就能看到最近扫描的歌曲。</small></div><button id="local-home-action" type="button">选择音乐</button></div>';$("#local-home-action").onclick=()=>{switchTab("search");setSearchSource("local");if(!state.localFolder)chooseLocalFolder();else searchLocal("")};return}
+  renderTracks(state.homeLocalTracks.slice(0,6),"local-home-list");
+}
 function renderLibrary(){
   const root=$("#library-content");$$("[data-library]").forEach(b=>b.classList.toggle("selected",b.dataset.library===state.libraryTab));
   if(state.libraryTab==="favorites"){root.innerHTML="";renderTracks(state.favorites,"library-content");return}
@@ -203,4 +212,4 @@ function renderLibrary(){
 $$("[data-library]").forEach(b=>b.onclick=()=>{state.libraryTab=b.dataset.library;renderLibrary()});
 function addToPlaylist(t){if(!state.playlists.length)state.playlists.push({id:Date.now().toString(),name:"稍后再听",tracks:[]});const p=state.playlists[state.playlists.length-1];if(!p.tracks.some(x=>x.id===t.id))p.tracks.push(t);save();toast("已加入「"+p.name+"」")}
 function openPlaylist(id){const p=state.playlists.find(x=>x.id===id);if(!p)return;state.activePlaylistId=id;state.selectionTarget=null;state.selectedIds=new Set();$("#library-content").innerHTML='<div class="section-head"><h2>'+esc(p.name)+'</h2><button class="text-btn" id="back-playlists">返回</button></div><div id="playlist-tracks"></div>';$("#back-playlists").onclick=renderLibrary;renderTracks(p.tracks,"playlist-tracks")}
-renderRecent();renderLibrary();renderLocalFolder();loadSavedLocalFolder();
+renderRecent();renderLibrary();renderLocalFolder();renderLocalHome();loadSavedLocalFolder();
