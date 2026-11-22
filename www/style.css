@@ -80,3 +80,5 @@
 .lyric-line.active{color:var(--lime);font-size:16px;font-weight:700;transform:scale(1.015)}
 .lyrics-empty{padding:42px 10px;color:var(--muted);font-size:12px;line-height:1.8;text-align:center}
 @media(max-height:620px){.lyrics-panel{height:40dvh;bottom:160px}}
+
+.lyrics-sync-controls{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 0 7px;border-bottom:1px solid var(--line);flex:none}.lyrics-sync-controls span{font-size:10px;color:var(--muted);margin-right:4px}.lyrics-sync-controls button{min-width:34px;height:30px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);font-size:16px}.lyrics-sync-controls button:last-child{font-size:10px;padding:0 10px}.lyrics-sync-controls strong{min-width:46px;text-align:center;color:var(--lime);font-size:12px;font-variant-numeric:tabular-nums}
