@@ -183,25 +183,62 @@ async function fromLrclib(track) {
 }
 
 async function fromLrcCx(track) {
-  const params = new URLSearchParams({
-    title: track.title || "",
-    artist: track.artist === "本地音乐" ? "" : (track.artist || ""),
-    album: track.album || ""
-  });
-  const response = await request("https://api.lrc.cx/api/v1/lyrics/advance?" + params.toString(), 5500);
-  const records = await response.json();
-  if (Array.isArray(records) && records.length) {
-    const ranked = records.map(record => ({ record, ...candidateScore(record, track) })).sort((a, b) => b.score - a.score);
-    const best = ranked[0];
-    if (best && best.titleScore >= 0.62 && best.artistScore >= 0.3) {
-      const result = resultFrom({ lyrics: best.record.lyrics }, "LrcAPI");
-      if (result) return result;
+  const title = String(track.title || "").trim();
+  const artist = track.artist && track.artist !== "本地音乐" ? String(track.artist).trim() : "";
+  const album = String(track.album || "").trim();
+  if (!title) return null;
+
+  // Chinese catalog coverage is stronger on LrcAPI than on LRCLIB/lyrics.ovh.
+  // Try the complete tags first, then relax artist/album in case local ID3 tags
+  // are incomplete or use a different artist spelling.
+  const variants = [
+    { title, artist, album },
+    { title, artist, album: "" },
+    { title, artist: "", album: "" }
+  ];
+  const seen = new Set();
+  for (const query of variants) {
+    const key = [query.title, query.artist, query.album].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const params = new URLSearchParams(query);
+    try {
+      const response = await request("https://api.lrc.cx/api/v1/lyrics/advance?" + params.toString(), 5500);
+      const records = await response.json();
+      if (Array.isArray(records) && records.length) {
+        const ranked = records.map(record => ({
+          record,
+          ...candidateScore({ trackName: record.title, artistName: record.artist, duration: record.duration }, track)
+        })).sort((a, b) => b.score - a.score);
+        const best = ranked.find(item => {
+          if (item.titleScore < 0.72) return false;
+          // If local artist metadata is missing, require a near-exact title.
+          if (!artist) return item.titleScore >= 0.88;
+          return item.artistScore >= 0.30;
+        });
+        if (best) {
+          const result = resultFrom({ lyrics: best.record.lyrics }, "LrcAPI");
+          if (result) return result;
+        }
+      }
+    } catch (error) {
+      console.warn("[JerryMusic lyrics] LrcAPI advance failed:", error?.message || error);
     }
   }
-  const single = await request("https://api.lrc.cx/api/v1/lyrics/single?" + params.toString(), 8000);
-  const lrc = (await single.text()).trim();
-  const lines = parseLrc(lrc);
-  return lines.length ? { lines, synced: true, plainLyrics: lines.map(line => line.text).join("\n"), source: "LrcAPI", instrumental: false } : null;
+
+  // Last-resort direct lookup; this endpoint returns plain LRC text.
+  const params = new URLSearchParams({ title, artist, album });
+  try {
+    const response = await request("https://api.lrc.cx/api/v1/lyrics/single?" + params.toString(), 6000);
+    const lrc = (await response.text()).trim();
+    const lines = parseLrc(lrc);
+    return lines.length
+      ? { lines, synced: true, plainLyrics: lines.map(line => line.text).join("\n"), source: "LrcAPI", instrumental: false }
+      : null;
+  } catch (error) {
+    console.warn("[JerryMusic lyrics] LrcAPI single failed:", error?.message || error);
+    return null;
+  }
 }
 
 async function fromLyricsOvh(track) {
