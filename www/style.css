@@ -80,3 +80,6 @@
 .lyric-line.active{color:var(--lime);font-size:16px;font-weight:700;transform:scale(1.015)}
 .lyrics-empty{padding:42px 10px;color:var(--muted);font-size:12px;line-height:1.8;text-align:center}
 @media(max-height:620px){.lyrics-panel{height:40dvh;bottom:160px}}
+
+/* Lyrics dismissal overlay */
+.lyrics-overlay{position:fixed;inset:0;z-index:7;background:#0005;opacity:0;pointer-events:none;transition:opacity .2s}.lyrics-overlay.show{opacity:1;pointer-events:auto}
