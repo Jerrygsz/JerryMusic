@@ -145,18 +145,21 @@ function setEQ(low,mid,high){setupEQ();if(!eqContext)return;if(eqContext.state==
 $("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"?[8,3,0]:p==="vocal"?[-3,6,2]:p==="treble"?[0,2,8]:[0,0,0];setEQ(...v);$("[data-eq]").forEach(x=>x.classList.toggle("eq-selected",x===b));toast(({flat:"原声",bass:"低音增强",vocal:"人声增强",treble:"高音增强"})[p]+" 已应用")});
 let lyricLines=[],lyricRequest=0,lastActiveLyric=-1;
 async function lookupLyrics(track){
- const id=++lyricRequest,panel=$("#lyrics-panel");panel.innerHTML='<div class="lyrics-placeholder">正在匹配国内歌词源…</div>';lyricLines=[];
- const renderLrc=lrc=>{lastActiveLyric=-1;lyricLines=(lrc||"").split(/\r?\n/).map(line=>{const m=line.match(/^\[(\d+):(\d+(?:\.\d+)?)\]/);return m?{time:Number(m[1])*60+Number(m[2]),text:line.replace(/^\[[^\]]+\]/,"").trim()}:null}).filter(x=>x&&x.text).sort((x,y)=>x.time-y.time);panel.innerHTML=lyricLines.length?lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join(""):'<div class="lyrics-placeholder">歌词未含时间轴</div>'};
- const get=async url=>{const c=new AbortController(),timer=setTimeout(()=>c.abort(),6500);try{const r=await fetch(url,{signal:c.signal});if(!r.ok)throw Error();return await r.json()}finally{clearTimeout(timer)}};
+ const id=++lyricRequest;
  try{
-  // 优先网易云公开检索接口，按歌名搜索后取对应 LRC
-  const data=await get("https://music.163.com/api/search/get?"+new URLSearchParams({s:(track.title||"")+" "+(track.artist||""),type:"1",limit:"6"}));if(id!==lyricRequest)return;
-  const songs=data?.result?.songs||[],song=songs.find(x=>(x.name||"").toLowerCase()===(track.title||"").toLowerCase())||songs[0];
-  if(song?.id){const lyric=await get("https://music.163.com/api/song/lyric?"+new URLSearchParams({id:String(song.id),lv:"1",kv:"1",tv:"1"}));if(id!==lyricRequest)return;if(lyric?.lrc?.lyric){$("#full-title").textContent=song.name||track.title;$("#full-artist").textContent=(song.artists||[]).map(x=>x.name).join("/")||track.artist;renderLrc(lyric.lrc.lyric);return}}
- }catch(e){}
- // fallback
- try{const hits=await get("https://lrclib.net/api/search?"+new URLSearchParams({track_name:track.title||"",artist_name:track.artist||""}));if(id!==lyricRequest)return;const best=(hits||[]).find(x=>x.syncedLyrics)||(hits||[])[0];if(best){$("#full-title").textContent=best.trackName||track.title;$("#full-artist").textContent=best.artistName||track.artist;if(best.syncedLyrics)renderLrc(best.syncedLyrics);else panel.innerHTML='<div class="lyrics-placeholder">'+esc(best.plainLyrics||"未找到歌词")+'</div>';return}}catch(e){}
- if(id===lyricRequest)panel.innerHTML='<div class="lyrics-placeholder">歌词获取失败，可能受网络或接口跨域限制。请重试。</div>';
+  const params=new URLSearchParams({track_name:track.title||"",artist_name:track.artist||""});
+  const res=await fetch("https://lrclib.net/api/search?"+params.toString());
+  if(!res.ok)throw Error("歌词服务暂不可用");
+  const hits=await res.json();if(id!==lyricRequest)return;
+  const best=(hits||[]).find(x=>x.syncedLyrics)|| (hits||[])[0];
+  if(!best){$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">暂未找到匹配歌词</div>';return}
+  $("#full-title").textContent=best.trackName||track.title;
+  $("#full-artist").textContent=best.artistName||track.artist;
+  if(best.syncedLyrics){
+   lastActiveLyric=-1;lyricLines=best.syncedLyrics.split(/\r?\n/).flatMap(line=>{const m=[...line.matchAll(/\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/g)];const text=line.replace(/\[[^\]]+\]/g,"").trim();return m.map(x=>({time:+x[1]*60 + +x[2] + (x[3]?+(x[3].padEnd(3,"0"))/1000:0),text}))}).filter(x=>x.text).sort((a,b)=>a.time-b.time);
+   $("#lyrics-panel").innerHTML=lyricLines.length?lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join(""):'<div class="lyrics-placeholder">找到歌词，但没有可同步的时间轴</div>';
+  }else{$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">'+esc(best.plainLyrics||"暂未找到歌词")+'</div>';lyricLines=[]}
+ }catch(e){if(id===lyricRequest)$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">歌词暂时无法获取，联网后可重试</div>'}
 }
 function syncLyrics(time){
  if(!lyricLines.length)return;let lo=0,hi=lyricLines.length-1,active=-1;
