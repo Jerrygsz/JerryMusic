@@ -113,7 +113,7 @@ function renderTracks(items,target){
       save();toast("已从当前列表移除 "+chosen.length+" 首")
     }
     state.selectedIds=new Set();state.selectionTarget=null;
-    if(target==="library-content"||target==="recent-list")renderLibrary();
+    if(target==="library-content")renderLibrary();else if(target==="recent-list")renderRecent();
     else if(target==="playlist-tracks"){const p=state.playlists.find(x=>x.id===state.activePlaylistId);renderTracks(p?.tracks||[],target)}
     else renderTracks(target==="results-list"?state.results:items.filter(t=>!chosen.includes(t)),target);
   });
