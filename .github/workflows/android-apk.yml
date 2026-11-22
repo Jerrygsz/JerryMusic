@@ -2,7 +2,7 @@ name: Build JerryMusic Android APK
 
 on:
   push:
-    branches: [main, feature/android-apk, feature/player-core-ux, feature/lyrics-system, fix/android-all-buttons-unresponsive]
+    branches: [main, feature/android-apk, feature/player-core-ux, feature/lyrics-system, fix/android-all-buttons-unresponsive, fix/navigation-queryselector-crash]
   pull_request:
     branches: [main, feature/android-apk]
   workflow_dispatch:
