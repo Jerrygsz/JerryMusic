@@ -1,5 +1,6 @@
 const CACHE_KEY = "jm_lyrics_cache_v1";
 const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
+const NEGATIVE_CACHE_TTL = 6 * 60 * 60 * 1000;
 const MAX_CACHE_ITEMS = 80;
 
 function normalize(value) {
@@ -193,7 +194,7 @@ export class LyricsEngine {
     const key = cacheKey(track);
     const cache = readCache();
     const cached = cache[key];
-    if (cached && Date.now() - cached.savedAt < CACHE_TTL) return cached.value || null;
+    if (cached && Date.now() - cached.savedAt < (cached.value ? CACHE_TTL : NEGATIVE_CACHE_TTL)) return cached.value || null;
 
     const providers = [
       ["LRCLIB", () => fromLrclib(track)],
