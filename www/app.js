@@ -225,13 +225,13 @@ function syncLyrics(seconds,force=false){
     if(lyricLines[mid].time<=seconds){found=mid;low=mid+1}else high=mid-1;
   }
   if(found<0)return;
-  if(found===activeLyricIndex){if(force){const current=$("#lyrics-lines").querySelector('[data-index="'+found+'"]');if(current)current.scrollIntoView({block:"center",behavior:"auto"})}return}
+  if(found===activeLyricIndex){if(force){const current=$("#lyrics-lines").querySelector('[data-index="'+found+'"]');if(current&&$("#lyrics-panel").classList.contains("show"))current.scrollIntoView({block:"center",behavior:"auto"})}return}
   const previous=activeLyricIndex;
   activeLyricIndex=found;
   const oldRow=previous>=0?$("#lyrics-lines").querySelector('[data-index="'+previous+'"]'):null;
   const row=$("#lyrics-lines").querySelector('[data-index="'+found+'"]');
   if(oldRow)oldRow.classList.remove("active");
-  if(row){row.classList.add("active");row.scrollIntoView({block:"center",behavior:force?"auto":"smooth"})}
+  if(row){row.classList.add("active");if($("#lyrics-panel").classList.contains("show"))row.scrollIntoView({block:"center",behavior:force?"auto":"smooth"})}
 }
 function openLyrics(){
   $("#lyrics-panel").classList.add("show");
@@ -251,12 +251,12 @@ function renderQueue(){
   if(!state.queue.length){root.innerHTML='<div class="empty-note">播放队列还是空的，先选几首喜欢的音乐吧。</div>';return}
   root.innerHTML=state.queue.map((t,i)=>'<div class="queue-track '+(i===state.index?'playing':'')+'" data-queue-index="'+i+'"><span class="queue-number">'+(i===state.index?'♫':String(i+1).padStart(2,'0'))+'</span><div class="queue-track-info"><strong>'+esc(t.title)+'</strong><small>'+esc(t.artist)+'</small></div><button data-queue-remove="'+i+'" aria-label="移除歌曲">×</button></div>').join("");
   root.querySelectorAll(".queue-track").forEach(row=>row.onclick=e=>{if(e.target.closest("[data-queue-remove]"))return;state.index=+row.dataset.queueIndex;loadCurrent();renderQueue()});
-  root.querySelectorAll("[data-queue-remove]").forEach(b=>b.onclick=e=>{e.stopPropagation();const i=+b.dataset.queueRemove;state.queue.splice(i,1);if(i<state.index)state.index--;else if(i===state.index){if(state.queue.length){state.index=Math.min(i,state.queue.length-1);loadCurrent()}else{state.index=-1;state.current=null;audio.pause();audio.removeAttribute("src");$("#now-title").textContent="还没有播放歌曲";$("#now-artist").textContent="去发现页找点音乐"}}renderQueue()});
+  root.querySelectorAll("[data-queue-remove]").forEach(b=>b.onclick=e=>{e.stopPropagation();const i=+b.dataset.queueRemove;state.queue.splice(i,1);if(i<state.index)state.index--;else if(i===state.index){if(state.queue.length){state.index=Math.min(i,state.queue.length-1);loadCurrent()}else{state.index=-1;state.current=null;audio.pause();audio.removeAttribute("src");$("#now-title").textContent="还没有播放歌曲";$("#now-artist").textContent="去发现页找点音乐";lyricsRequest++;renderLyrics(null);$("#lyrics-track").textContent="歌词";setLyricsStatus("等待播放")}}renderQueue()});
 }
 function openQueue(){renderQueue();$("#queue-overlay").classList.add("show");$("#queue-drawer").classList.add("show");$("#queue-drawer").setAttribute("aria-hidden","false");$("#queue-overlay").setAttribute("aria-hidden","false")}
 function closeQueue(){$("#queue-overlay").classList.remove("show");$("#queue-drawer").classList.remove("show");$("#queue-drawer").setAttribute("aria-hidden","true");$("#queue-overlay").setAttribute("aria-hidden","true")}
 $("#queue-btn").onclick=openQueue;$("#queue-close").onclick=closeQueue;$("#queue-overlay").onclick=closeQueue;
-$("#queue-clear").onclick=()=>{state.queue=[];state.index=-1;state.current=null;audio.pause();audio.removeAttribute("src");$("#now-title").textContent="还没有播放歌曲";$("#now-artist").textContent="去发现页找点音乐";renderQueue();toast("播放队列已清空")};
+$("#queue-clear").onclick=()=>{state.queue=[];state.index=-1;state.current=null;audio.pause();audio.removeAttribute("src");$("#now-title").textContent="还没有播放歌曲";$("#now-artist").textContent="去发现页找点音乐";lyricsRequest++;renderLyrics(null);$("#lyrics-track").textContent="歌词";setLyricsStatus("等待播放");renderQueue();toast("播放队列已清空")};
 let touchStartY=0;$("#queue-drawer").addEventListener("touchstart",e=>{touchStartY=e.touches[0].clientY},{passive:true});
 $("#queue-drawer").addEventListener("touchend",e=>{const delta=e.changedTouches[0].clientY-touchStartY;if(delta>75)closeQueue()},{passive:true});
 function renderRecent(){renderTracks(state.recent.slice(0,5),"recent-list")}
