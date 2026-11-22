@@ -8,10 +8,10 @@ let lastRequestAt = 0;
 function normalize(value) {
   return String(value || "")
     .toLowerCase()
-    .replace(/\\([^)]*\\)|（[^）]*）|\\[[^\\]]*\\]|【[^】]*】/g, " ")
-    .replace(/feat\\.?|featuring|ft\\.?/g, " ")
-    .replace(/official\\s*(audio|video)?|lyrics?|lyric\\s*video|hd|4k|remaster(ed)?|live|acoustic|instrumental|karaoke|cover|demo|version/gi, " ")
-    .replace(/[^\\p{L}\\p{N}]+/gu, "");
+    .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g, " ")
+    .replace(/feat\.?|featuring|ft\.?/g, " ")
+    .replace(/official\s*(audio|video)?|lyrics?|lyric\s*video|hd|4k|remaster(ed)?|live|acoustic|instrumental|karaoke|cover|demo|version/gi, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 function similarity(a, b) {
