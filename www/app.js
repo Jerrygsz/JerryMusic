@@ -258,6 +258,11 @@ function closeLyrics(){
 }
 $("#lyrics-btn").onclick=()=>$("#lyrics-panel").classList.contains("show")?closeLyrics():openLyrics();
 $("#lyrics-close").onclick=closeLyrics;
+$("#lyrics-overlay").onclick=closeLyrics;
+let lyricsTouchStartY=0;
+$("#lyrics-panel").addEventListener("touchstart",e=>{lyricsTouchStartY=e.touches[0]?.clientY||0},{passive:true});
+$("#lyrics-panel").addEventListener("touchend",e=>{const endY=e.changedTouches[0]?.clientY||0;if(endY-lyricsTouchStartY>90)closeLyrics()},{passive:true});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#lyrics-panel").classList.contains("show"))closeLyrics()});
 function renderQueue(){
   $("#queue-count").textContent=state.queue.length+" 首";
   const root=$("#queue-items");
