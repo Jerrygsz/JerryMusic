@@ -10,7 +10,7 @@ function normalize(value) {
     .toLowerCase()
     .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g, " ")
     .replace(/feat\.?|featuring|ft\.?/g, " ")
-    .replace(/official\s*(audio|video)?|lyrics?|lyric\s*video|hd|4k|remaster(ed)?|live|acoustic|instrumental|karaoke|cover|demo|version/gi, " ")
+    .replace(/(?:^|[\s\-_])(?:official(?:\s*(?:audio|video))?|lyrics?|lyric\s*video|hd|4k|remaster(?:ed)?|live|acoustic|instrumental|karaoke|cover|demo|version)(?:[\s\-_]|$)/gi, " ")
     .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
