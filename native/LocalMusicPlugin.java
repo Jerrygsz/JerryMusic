@@ -257,7 +257,7 @@ public class LocalMusicPlugin extends Plugin {
                 try (InputStream input = getContext().getContentResolver().openInputStream(uri);
                      FileOutputStream output = new FileOutputStream(temporary)) {
                     if (input == null) throw new IllegalStateException("Cannot open selected audio file");
-                    byte[] buffer = new byte[64 * 1024];
+                    byte[] buffer = new byte[256 * 1024];
                     int count;
                     while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
                     output.getFD().sync();
