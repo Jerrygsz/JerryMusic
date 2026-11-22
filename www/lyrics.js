@@ -127,7 +127,8 @@ async function request(url, timeoutMs = 7000) {
       : undefined;
     const response = await fetch(url, { signal: controller.signal, headers });
     if (response.status === 429) {
-      const retry = Math.max(1, Number(response.headers.get("Retry-After") || 30));
+      const retryHeader = Number(response.headers.get("Retry-After") || 30);
+      const retry = Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : 30;
       PROVIDER_COOLDOWNS.set(host, Date.now() + retry * 1000);
       throw new Error("歌词服务触发限流，已暂停请求约 " + retry + " 秒");
     }
@@ -147,13 +148,15 @@ async function fromLrclib(track) {
   const duration = durationSeconds(track);
   if (duration) params.set("duration", String(Math.round(duration)));
 
-  try {
-    const exact = await request("https://lrclib.net/api/get?" + params.toString());
-    const record = await exact.json();
-    const result = resultFrom(record, "LRCLIB");
-    if (result) return result;
-  } catch (error) {
-    if (String(error.message).includes("过于频繁")) throw error;
+  if (track.artist && track.artist !== "本地音乐") {
+    try {
+      const exact = await request("https://lrclib.net/api/get?" + params.toString());
+      const record = await exact.json();
+      const result = resultFrom(record, "LRCLIB");
+      if (result) return result;
+    } catch (error) {
+      if (String(error.message).includes("限流")) throw error;
+    }
   }
 
   const searchParams = new URLSearchParams();
