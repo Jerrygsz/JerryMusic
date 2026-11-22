@@ -45,3 +45,14 @@
 .queue-track-info small{font-size:10px;color:var(--muted);margin-top:4px}
 .queue-track button{border:0;background:none;color:var(--muted);font-size:22px;padding:5px 9px}
 @media(min-width:650px){.queue-drawer{border-radius:22px 22px 0 0}}
+
+.playlist-picker-overlay{position:fixed;inset:0;z-index:40;background:#000a;display:grid;place-items:center;padding:22px}
+.playlist-picker{width:min(100%,390px);background:#202228;border:1px solid #ffffff16;border-radius:18px;padding:19px;box-shadow:0 18px 55px #0008}
+.picker-head{display:flex;align-items:center;justify-content:space-between}
+.picker-head strong{font-size:16px}
+.picker-head button{border:0;background:none;color:var(--muted);font-size:25px}
+.playlist-picker p{font-size:11px;color:var(--muted);margin:8px 0 15px}
+.playlist-picker select{width:100%;padding:12px;background:#111318;color:var(--text);border:1px solid var(--line);border-radius:10px;font-size:12px}
+.picker-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:17px}
+.picker-actions button{border:1px solid var(--line);border-radius:9px;padding:10px 14px;background:var(--panel);color:var(--text);font-size:11px}
+.picker-actions button:last-child{background:var(--lime);border-color:var(--lime);color:#171912;font-weight:700}
