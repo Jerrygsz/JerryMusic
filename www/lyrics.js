@@ -2,6 +2,8 @@ const CACHE_KEY = "jm_lyrics_cache_v1";
 const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 const NEGATIVE_CACHE_TTL = 6 * 60 * 60 * 1000;
 const MAX_CACHE_ITEMS = 80;
+const PROVIDER_COOLDOWNS = new Map();
+let lastRequestAt = 0;
 
 function normalize(value) {
   return String(value || "")
@@ -69,7 +71,8 @@ function writeCache(cache) {
 }
 
 function cacheKey(track) {
-  return [track.title, track.artist, track.album || ""].map(normalize).join("|");
+  const duration = durationSeconds(track);
+  return [track.title, track.artist, track.album || "", duration ? Math.round(duration) : ""].map(normalize).join("|");
 }
 
 function durationSeconds(track) {
@@ -109,6 +112,13 @@ function resultFrom(record, provider) {
 }
 
 async function request(url, timeoutMs = 7000) {
+  const host = new URL(url).host;
+  const cooldownUntil = PROVIDER_COOLDOWNS.get(host) || 0;
+  const waitForCooldown = Math.max(0, cooldownUntil - Date.now());
+  const waitForPacing = Math.max(0, 300 - (Date.now() - lastRequestAt));
+  const wait = Math.max(waitForCooldown, waitForPacing);
+  if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+  lastRequestAt = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -117,8 +127,9 @@ async function request(url, timeoutMs = 7000) {
       : undefined;
     const response = await fetch(url, { signal: controller.signal, headers });
     if (response.status === 429) {
-      const retry = Number(response.headers.get("Retry-After") || 0);
-      throw new Error(retry ? "歌词服务请求过于频繁，请稍后再试" : "歌词服务请求过于频繁");
+      const retry = Math.max(1, Number(response.headers.get("Retry-After") || 30));
+      PROVIDER_COOLDOWNS.set(host, Date.now() + retry * 1000);
+      throw new Error("歌词服务触发限流，已暂停请求约 " + retry + " 秒");
     }
     if (!response.ok) throw new Error("Lyrics provider returned " + response.status);
     return response;
