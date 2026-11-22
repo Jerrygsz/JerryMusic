@@ -9,7 +9,8 @@ function normalize(value) {
   return String(value || "").toLowerCase()
     .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g, " ")
     .replace(/\b(feat\.?|featuring|ft\.?|with)\b/gi, " ")
-    .replace(/\b(official|audio|video|music video|lyrics|lyric|remastered|live|demo|完整版|官方版|伴奏|纯音乐)\b/gi, " ")
+    .replace(/\b(official|audio|video|music video|lyrics|lyric|remastered|live|demo)\b/gi, " ")
+    .replace(/(完整版|官方版|伴奏|纯音乐|无损|高清版|电视剧版|电影版|片尾曲|主题曲|插曲)/g, " ")
     .replace(/[\s_]+/g, " ").replace(/[^\p{L}\p{N}]+/gu, "");
 }
 function titleVariants(value) {
@@ -90,12 +91,16 @@ function durationSeconds(track) {
 }
 
 function candidateScore(candidate, track) {
-  const titleScore = similarity(candidate.trackName || candidate.name || candidate.title, track.title);
+  const title = candidate.trackName || candidate.name || candidate.title || candidate.song || candidate.songName || "";
+  const titleScore = similarity(title, track.title);
+  const rawArtist = candidate.artistName || candidate.artist || candidate.artists || candidate.singer || candidate.singers || "";
+  const candidateArtist = Array.isArray(rawArtist) ? rawArtist.join(" ") : String(rawArtist || "");
   const artistScore = track.artist && track.artist !== "本地音乐"
-    ? similarity(candidate.artistName || candidate.artist, track.artist)
+    ? similarity(candidateArtist, track.artist)
     : 0.55;
   const targetDuration = durationSeconds(track);
-  const foundDuration = Number(candidate.duration || 0);
+  const rawDuration = Number(candidate.duration || candidate.durationSeconds || candidate.length || 0);
+  const foundDuration = rawDuration > 10000 ? rawDuration / 1000 : rawDuration;
   let durationScore = 0.5;
   if (targetDuration && foundDuration) {
     const diff = Math.abs(targetDuration - foundDuration);
