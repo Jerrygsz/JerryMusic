@@ -32,7 +32,7 @@ const save=()=>{localStorage.setItem("jm_favorites",JSON.stringify(state.favorit
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const toast=s=>{const t=$("#toast");t.textContent=s;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)};
 const fmt=n=>{if(!Number.isFinite(n))return"0:00";return Math.floor(n/60)+":"+String(Math.floor(n%60)).padStart(2,"0")};
-function switchTab(tab){$(".view").forEach(v=>v.classList.toggle("active",v.id===tab+"-view"));$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));if(tab==="library")renderLibrary();if(tab==="home"){renderRecent();renderLocalHome()}}
+function switchTab(tab){$$(".view").forEach(v=>v.classList.toggle("active",v.id===tab+"-view"));$$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));if(tab==="library")renderLibrary();if(tab==="home"){renderRecent();renderLocalHome()}}
 $$(".nav-item").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 $$("[data-tab]").filter(b=>!b.classList.contains("nav-item")).forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 $("#search-focus").onclick=()=>{switchTab("search");$("#search-input").focus()};
