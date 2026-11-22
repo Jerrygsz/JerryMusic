@@ -146,21 +146,21 @@ function setEQ(low,mid,high){setupEQ();if(!eqContext)return;if(eqContext.state==
 $("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"?[8,3,0]:p==="vocal"?[-3,6,2]:p==="treble"?[0,2,8]:[0,0,0];setEQ(...v);$("[data-eq]").forEach(x=>x.classList.toggle("eq-selected",x===b));toast(({flat:"原声",bass:"低音增强",vocal:"人声增强",treble:"高音增强"})[p]+" 已应用")});
 let lyricLines=[],lyricRequest=0,lastActiveLyric=-1;
 async function lookupLyrics(track){
- const id=++lyricRequest;
+ const id=++lyricRequest; lyricLines=[];lastActiveLyric=-1;
+ $("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">正在多源匹配歌词…</div>';
+ const title=track.title||"",artist=track.artist||"";
+ const timedFetch=async(url,options={},ms=4500)=>{const c=new AbortController(),timer=setTimeout(()=>c.abort(),ms);try{return await fetch(url,{...options,signal:c.signal})}finally{clearTimeout(timer)}};
+ const parseLrc=raw=>String(raw||"").split(/\r?\n/).flatMap(line=>{const marks=[...line.matchAll(/\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/g)],txt=line.replace(/\[[^\]]+\]/g,"").trim();return marks.map(m=>({time:+m[1]*60 + +m[2]+(m[3]?+(m[3].padEnd(3,"0"))/1000:0),text:txt}))}).filter(x=>x.text).sort((a,b)=>a.time-b.time);
+ const show=(raw,source,meta={})=>{if(id!==lyricRequest)return false;lyricLines=parseLrc(raw);if(lyricLines.length){$("#full-title").textContent=meta.title||title;$("#full-artist").textContent=meta.artist||artist;$("#lyrics-panel").innerHTML=lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join("");return true}if(raw&&String(raw).trim()){lyricLines=[];$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">'+esc(raw)+'</div>';return true}return false};
  try{
-  const params=new URLSearchParams({track_name:track.title||"",artist_name:track.artist||""});
-  const res=await fetch("https://lrclib.net/api/search?"+params.toString());
-  if(!res.ok)throw Error("歌词服务暂不可用");
-  const hits=await res.json();if(id!==lyricRequest)return;
-  const best=(hits||[]).find(x=>x.syncedLyrics)|| (hits||[])[0];
-  if(!best){$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">暂未找到匹配歌词</div>';return}
-  $("#full-title").textContent=best.trackName||track.title;
-  $("#full-artist").textContent=best.artistName||track.artist;
-  if(best.syncedLyrics){
-   lastActiveLyric=-1;lyricLines=best.syncedLyrics.split(/\r?\n/).flatMap(line=>{const m=[...line.matchAll(/\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/g)];const text=line.replace(/\[[^\]]+\]/g,"").trim();return m.map(x=>({time:+x[1]*60 + +x[2] + (x[3]?+(x[3].padEnd(3,"0"))/1000:0),text}))}).filter(x=>x.text).sort((a,b)=>a.time-b.time);
-   $("#lyrics-panel").innerHTML=lyricLines.length?lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join(""):'<div class="lyrics-placeholder">找到歌词，但没有可同步的时间轴</div>';
-  }else{$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">'+esc(best.plainLyrics||"暂未找到歌词")+'</div>';lyricLines=[]}
- }catch(e){if(id===lyricRequest)$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">歌词暂时无法获取，联网后可重试</div>'}
+  // Source 1: LRCLIB, prefer exact synchronized results
+  try{const p=new URLSearchParams({track_name:title,artist_name:artist});const res=await timedFetch("https://lrclib.net/api/search?"+p,{},4000);if(res.ok){const hits=await res.json();if(id!==lyricRequest)return;const exact=(hits||[]).filter(x=>x.syncedLyrics).sort((a,b)=>Math.abs((a.duration||0)-(track.durationMs?track.durationMs/1000:0))-Math.abs((b.duration||0)-(track.durationMs?track.durationMs/1000:0)));if(exact[0]&&show(exact[0].syncedLyrics,"LRCLIB",{title:exact[0].trackName,artist:exact[0].artistName}))return;const plain=(hits||[]).find(x=>x.plainLyrics);if(plain&&show(plain.plainLyrics,"LRCLIB",{title:plain.trackName,artist:plain.artistName}))return}}catch(e){}
+  // Source 2: NetEase public search + lyric endpoint (best-effort; upstream CORS may block)
+  try{const q=encodeURIComponent(title+" "+artist);const res=await timedFetch("https://music.163.com/api/search/get/web?s="+q+"&type=1&limit=8",{},4500);if(res.ok){const j=await res.json(),songs=j?.result?.songs||[];if(id!==lyricRequest)return;const song=songs.find(s=>(String(s.name||"").toLowerCase().includes(title.toLowerCase())||title.toLowerCase().includes(String(s.name||"").toLowerCase())));if(song?.id){const lr=await timedFetch("https://music.163.com/api/song/lyric?id="+song.id+"&lv=-1&kv=-1&tv=-1",{},4500);if(lr.ok){const data=await lr.json();if(show(data?.lrc?.lyric||data?.tlyric?.lyric,"NetEase",{title:song.name,artist:(song.artists||[]).map(x=>x.name).join("/")}))return}}}}catch(e){}
+  // Source 3: Lyrics.ovh provides plain text fallback, without timestamps
+  try{const res=await timedFetch("https://api.lyrics.ovh/v1/"+encodeURIComponent(artist)+"/"+encodeURIComponent(title),{},4500);if(res.ok){const data=await res.json();if(id===lyricRequest&&data?.lyrics){lyricLines=[];$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">'+esc(data.lyrics).replace(/\n/g,"<br>")+'</div>';return}}}catch(e){}
+  if(id===lyricRequest)$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">多个歌词源都未匹配到结果 · 可点击重试</div>';
+ }catch(e){if(id===lyricRequest)$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">歌词暂时无法获取 · 可点击重试</div>'}
 }
 function syncLyrics(time){
  if(!lyricLines.length)return;let lo=0,hi=lyricLines.length-1,active=-1;
