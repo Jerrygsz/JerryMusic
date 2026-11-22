@@ -145,31 +145,56 @@ function setEQ(low,mid,high){setupEQ();if(!eqContext)return;if(eqContext.state==
 ["low","mid","high"].forEach(k=>$("#eq-"+k).oninput=()=>setEQ(+$("#eq-low").value,+$("#eq-mid").value,+$("#eq-high").value));
 $("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"?[8,3,0]:p==="vocal"?[-3,6,2]:p==="treble"?[0,2,8]:[0,0,0];setEQ(...v);$("[data-eq]").forEach(x=>x.classList.toggle("eq-selected",x===b));toast(({flat:"原声",bass:"低音增强",vocal:"人声增强",treble:"高音增强"})[p]+" 已应用")});
 let lyricLines=[],lyricRequest=0,lastActiveLyric=-1;
+const lyricCacheKey=(title,artist)=>"jm_lyrics_"+(String(title||"").trim().toLowerCase()+"|"+String(artist||"").trim().toLowerCase());
+function renderLyricResult(item,title,artist){
+ lyricLines=[];lastActiveLyric=-1;
+ $("#full-title").textContent=item.title||title;$("#full-artist").textContent=item.artist||artist;
+ if(item.format==="ttml"){
+  try{const doc=new DOMParser().parseFromString(item.raw,"application/xml");if(!doc.querySelector("parsererror"))lyricLines=[...doc.getElementsByTagName("p")].map(p=>{const v=p.getAttribute("begin")||"0";const parts=v.replace(/s$/,"").split(":").map(Number);const time=parts.length===3?parts[0]*3600+parts[1]*60+parts[2]:parts.length===2?parts[0]*60+parts[1]:Number(parts[0])||0;return {time,text:(p.textContent||"").replace(/\\s+/g," ").trim()}}).filter(x=>x.text).sort((a,b)=>a.time-b.time)}catch(e){}
+ }else if(!item.plain){
+  lyricLines=String(item.raw||"").split(/\\r?\\n/).flatMap(line=>{const marks=[...line.matchAll(/\\[(\\d{2}):(\\d{2})(?:\\.(\\d{1,3}))?\\]/g)],txt=line.replace(/\\[[^\\]]+\\]/g,"").trim();return marks.map(m=>({time:+m[1]*60 + +m[2]+(m[3]?+(m[3].padEnd(3,"0"))/1000:0),text:txt}))}).filter(x=>x.text).sort((a,b)=>a.time-b.time);
+ }
+ const source='<div class="lyric-source">歌词来源 · '+esc(item.provider||"未知")+'</div>';
+ if(item.plain||!lyricLines.length){
+  $("#lyrics-panel").innerHTML=source+'<div class="lyrics-placeholder">'+esc(item.raw||"暂无歌词").replace(/\\r?\\n/g,"<br>")+'</div>';
+ }else $("#lyrics-panel").innerHTML=source+lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join("");
+}
 async function lookupLyrics(track){
  const id=++lyricRequest;lyricLines=[];lastActiveLyric=-1;
- $("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">正在并行匹配多个歌词源…</div>';
- const title=track.title||"",artist=track.artist||"";
- const request=async(url,ms=4000)=>{const c=new AbortController(),timer=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{signal:c.signal});return r.ok?r:null}catch(e){return null}finally{clearTimeout(timer)}};
- const parseTime=v=>{if(!v)return 0;const s=String(v);if(/^\d+(?:\.\d+)?s$/.test(s))return parseFloat(s);const p=s.split(":").map(Number);return p.length===3?p[0]*3600+p[1]*60+p[2]:p.length===2?p[0]*60+p[1]:0};
- const parseTTML=raw=>{try{const doc=new DOMParser().parseFromString(raw,"application/xml");if(doc.querySelector("parsererror"))return [];return [...doc.getElementsByTagName("p")].map(p=>({time:parseTime(p.getAttribute("begin")),text:(p.textContent||"").replace(/\s+/g," ").trim()})).filter(x=>x.text).sort((x,y)=>x.time-y.time)}catch(e){return []}};
- const parseLrc=raw=>String(raw||"").split(/\r?\n/).flatMap(line=>{const marks=[...line.matchAll(/\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/g)],txt=line.replace(/\[[^\]]+\]/g,"").trim();return marks.map(m=>({time:+m[1]*60 + +m[2]+(m[3]?+(m[3].padEnd(3,"0"))/1000:0),text:txt}))}).filter(x=>x.text).sort((a,b)=>a.time-b.time);
+ const title=track.title||"",artist=track.artist||"",key=lyricCacheKey(title,artist);
+ $("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">正在匹配歌词…</div>';
+ try{const saved=JSON.parse(localStorage.getItem(key)||"null");if(saved?.raw&&Date.now()-(saved.ts||0)<30*86400000){if(id===lyricRequest)renderLyricResult(saved,title,artist);return}}catch(e){}
+ const request=async(url,ms=4200)=>{const c=new AbortController(),timer=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{signal:c.signal});return r.ok?r:null}catch(e){return null}finally{clearTimeout(timer)}};
  const sources=[
-  (async()=>{try{const p=new URLSearchParams({musicName:title,artistName:artist,page:"1",pageSize:"8"}),r=await request("https://api.amll.dev/v1/lyrics/search?"+p,4000);if(!r)return null;const j=await r.json(),items=j?.data?.items||[];const hit=items.find(x=>(x.musicNames||[]).some(n=>n.toLowerCase()===title.toLowerCase()))||items[0];if(!hit?.id)return null;const g=await request("https://api.amll.dev/v1/lyrics/get?id="+encodeURIComponent(hit.id),4000);if(!g)return null;const lyric=await g.json(),data=lyric?.data;if(data?.lyrics)return {provider:"AMLL",raw:data.lyrics,format:"ttml",title:(data.musicNames||[])[0],artist:(data.artistNames||[]).join("/")};return null}catch(e){return null}})(),
-
-  (async()=>{try{const p=new URLSearchParams({track_name:title,artist_name:artist}),r=await request("https://lrclib.net/api/search?"+p,4000);if(!r)return null;const hits=await r.json();const synced=(hits||[]).filter(x=>x.syncedLyrics);const plain=(hits||[]).find(x=>x.plainLyrics);return {provider:"LRCLIB",synced:synced.map(x=>({raw:x.syncedLyrics,title:x.trackName,artist:x.artistName,duration:x.duration})),plain:plain?{raw:plain.plainLyrics,title:plain.trackName,artist:plain.artistName}:null}}catch(e){return null}})(),
-  (async()=>{try{const q=encodeURIComponent(title+" "+artist),r=await request("https://music.163.com/api/search/get/web?s="+q+"&type=1&limit=8",4200);if(!r)return null;const j=await r.json(),songs=j?.result?.songs||[],song=songs.find(s=>String(s.name||"").toLowerCase().includes(title.toLowerCase())||title.toLowerCase().includes(String(s.name||"").toLowerCase()));if(!song?.id)return null;const lr=await request("https://music.163.com/api/song/lyric?id="+song.id+"&lv=-1&kv=-1&tv=-1",4200);if(!lr)return null;const d=await lr.json();return d?.lrc?.lyric?{provider:"NetEase",raw:d.lrc.lyric,title:song.name,artist:(song.artists||[]).map(x=>x.name).join("/")}:null}catch(e){return null}})(),
-  (async()=>{try{const r=await request("https://api.lyrics.ovh/v1/"+encodeURIComponent(artist)+"/"+encodeURIComponent(title),4200);if(!r)return null;const d=await r.json();return d?.lyrics?{provider:"Lyrics.ovh",raw:d.lyrics,plain:true}:null}catch(e){return null}})()
+  (async()=>{try{
+   const p=new URLSearchParams({musicName:title,artistName:artist,page:"1",pageSize:"10"}),r=await request("https://api.amll.dev/v1/lyrics/search?"+p);if(!r)return null;
+   const j=await r.json(),items=j?.data?.items||[],norm=x=>String(x||"").trim().toLowerCase();
+   const score=x=>{const names=x.musicNames||[],artists=x.artistNames||[];return (names.some(n=>norm(n)===norm(title))?4:0)+(artists.some(n=>norm(n)===norm(artist))?3:0)};
+   const hit=[...items].sort((a,b)=>score(b)-score(a))[0];if(!hit?.id||score(hit)===0)return null;
+   const g=await request("https://api.amll.dev/v1/lyrics/get?id="+encodeURIComponent(hit.id));if(!g)return null;
+   const d=(await g.json())?.data;return d?.lyrics?{provider:"AMLL",raw:d.lyrics,format:"ttml",title:(hit.musicNames||[])[0]||title,artist:(hit.artistNames||[]).join("/")||artist}:null;
+  }catch(e){return null}})(),
+  (async()=>{try{const p=new URLSearchParams({track_name:title,artist_name:artist}),r=await request("https://lrclib.net/api/search?"+p);if(!r)return null;const hits=await r.json();if(!Array.isArray(hits))return null;
+   const norm=x=>String(x||"").trim().toLowerCase(),rank=x=>(norm(x.trackName)===norm(title)?4:0)+(norm(x.artistName)===norm(artist)?3:0);
+   const synced=hits.filter(x=>x.syncedLyrics).sort((a,b)=>rank(b)-rank(a)),plain=hits.filter(x=>x.plainLyrics).sort((a,b)=>rank(b)-rank(a));
+   if(synced[0])return {provider:"LRCLIB",raw:synced[0].syncedLyrics,title:synced[0].trackName,artist:synced[0].artistName};
+   if(plain[0])return {provider:"LRCLIB",raw:plain[0].plainLyrics,plain:true,title:plain[0].trackName,artist:plain[0].artistName};
+   return null;
+  }catch(e){return null}})(),
+  (async()=>{try{const q=encodeURIComponent(title+" "+artist),r=await request("https://music.163.com/api/search/get/web?s="+q+"&type=1&limit=8");if(!r)return null;const j=await r.json(),songs=j?.result?.songs||[],norm=x=>String(x||"").toLowerCase();
+   const song=songs.find(x=>norm(x.name)===norm(title))||songs[0];if(!song?.id)return null;
+   const lr=await request("https://music.163.com/api/song/lyric?id="+song.id+"&lv=-1&kv=-1&tv=-1");if(!lr)return null;const d=await lr.json();
+   return d?.lrc?.lyric?{provider:"网易云音乐",raw:d.lrc.lyric,title:song.name,artist:(song.artists||[]).map(x=>x.name).join("/")}:null;
+  }catch(e){return null}})(),
+  (async()=>{try{const r=await request("https://api.lyrics.ovh/v1/"+encodeURIComponent(artist)+"/"+encodeURIComponent(title));if(!r)return null;const d=await r.json();return d?.lyrics?{provider:"Lyrics.ovh",raw:d.lyrics,plain:true}:null}catch(e){return null}})()
  ];
- try{const results=await Promise.all(sources);if(id!==lyricRequest)return;
-  const amll=results[0];if(amll?.format==="ttml"){const timed=parseTTML(amll.raw);if(timed.length){lyricLines=timed;$("#full-title").textContent=amll.title||title;$("#full-artist").textContent=amll.artist||artist;$("#lyrics-panel").innerHTML=lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join("");return}}
-  const lrc=results[1];if(lrc?.synced?.length){const duration=track.durationMs?Number(track.durationMs)/1000:0;const hit=lrc.synced.sort((a,b)=>duration?Math.abs((a.duration||0)-duration)-Math.abs((b.duration||0)-duration):0)[0];if(hit)results[0]={provider:"LRCLIB",raw:hit.raw,title:hit.title,artist:hit.artist}}
-  const candidate=results[1]?.raw?results[1]:results[1]?.plain?{provider:"LRCLIB",...results[1].plain}:results[2]||results[3];
-  if(!candidate){$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">多个歌词源都未匹配到结果 · 可点击重试</div>';return}
-  if(candidate.plain){lyricLines=[];$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">'+esc(candidate.raw).replace(/\n/g,"<br>")+'</div>';return}
-  lyricLines=parseLrc(candidate.raw);if(!lyricLines.length){$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">'+esc(candidate.raw)+'</div>';return}
-  $("#full-title").textContent=candidate.title||title;$("#full-artist").textContent=candidate.artist||artist;
-  $("#lyrics-panel").innerHTML=lyricLines.map((l,i)=>'<p data-lyric="'+i+'">'+esc(l.text)+'</p>').join("");
- }catch(e){if(id===lyricRequest)$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">歌词暂时无法获取 · 可点击重试</div>'}
+ try{
+  const results=await Promise.all(sources);if(id!==lyricRequest)return;
+  const found=results.find(Boolean);
+  if(!found){$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">暂时没有匹配到歌词，可点击“重新匹配歌词”再试</div>';return}
+  try{localStorage.setItem(key,JSON.stringify({...found,ts:Date.now()}))}catch(e){}
+  renderLyricResult(found,title,artist);
+ }catch(e){if(id===lyricRequest)$("#lyrics-panel").innerHTML='<div class="lyrics-placeholder">歌词暂时无法获取 · 可重新匹配</div>'}
 }
 function syncLyrics(time){
  if(!lyricLines.length)return;let lo=0,hi=lyricLines.length-1,active=-1;
