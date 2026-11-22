@@ -23,6 +23,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.Locale;
+import org.json.JSONObject;
 
 @CapacitorPlugin(name = "LocalMusic")
 public class LocalMusicPlugin extends Plugin {
@@ -103,8 +104,7 @@ public class LocalMusicPlugin extends Plugin {
             JSArray found = new JSArray();
             ArrayDeque<DocumentFile> stack = new ArrayDeque<>();
             stack.add(root);
-            int visited = 0;
-            int matches = 0;
+            int visited = 0, audioScanned = 0, matches = 0;
             while (!stack.isEmpty() && visited < 10000 && matches < 200) {
                 DocumentFile current = stack.removeLast();
                 visited++;
@@ -113,8 +113,9 @@ public class LocalMusicPlugin extends Plugin {
                     if (child.isDirectory()) {
                         stack.add(child);
                     } else if (child.isFile() && isAudioFile(child)) {
+                        audioScanned++;
                         String name = child.getName() == null ? "未知音频" : child.getName();
-                        String[] metadata = readMetadata(child.getUri(), name);
+                        String[] metadata = getCachedMetadata(child, name);
                         String searchable = (metadata[0] + " " + metadata[1] + " " + name).toLowerCase(Locale.ROOT);
                         if (query.isEmpty() || searchable.contains(query)) {
                             JSObject item = new JSObject();
@@ -125,6 +126,7 @@ public class LocalMusicPlugin extends Plugin {
                             item.put("fileName", name);
                             item.put("durationMs", metadata[2]);
                             item.put("source", "local");
+                            item.put("size", child.length());
                             found.put(item);
                             matches++;
                         }
@@ -134,13 +136,38 @@ public class LocalMusicPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("tracks", found);
             response.put("scanned", visited);
-            response.put("truncated", !stack.isEmpty() || matches >= 200);
+            response.put("audioScanned", audioScanned);
+            response.put("truncated", !stack.isEmpty() || matches >= 200 || visited >= 10000);
             call.resolve(response);
         } catch (SecurityException e) {
             call.reject("Folder permission expired. Please choose the folder again.", e);
         } catch (Exception e) {
             call.reject("Could not scan this folder: " + e.getMessage(), e);
         }
+    }
+
+    private String[] getCachedMetadata(DocumentFile file, String fallbackName) {
+        String uri = file.getUri().toString();
+        long size = file.length();
+        long modified = file.lastModified();
+        String key = "meta_" + Integer.toHexString(uri.hashCode()) + "_" + size + "_" + modified;
+        android.content.SharedPreferences prefs = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String cached = prefs.getString(key, null);
+        if (cached != null) {
+            try {
+                JSONObject json = new JSONObject(cached);
+                return new String[]{json.optString("title", fallbackName), json.optString("artist", "本地音乐"), json.optString("duration", "")};
+            } catch (Exception ignored) {}
+        }
+        String[] metadata = readMetadata(file.getUri(), fallbackName);
+        try {
+            JSONObject json = new JSONObject();
+            json.put("title", metadata[0]);
+            json.put("artist", metadata[1]);
+            json.put("duration", metadata[2]);
+            prefs.edit().putString(key, json.toString()).apply();
+        } catch (Exception ignored) {}
+        return metadata;
     }
 
     @PluginMethod
@@ -150,6 +177,7 @@ public class LocalMusicPlugin extends Plugin {
             call.reject("Missing local music URI");
             return;
         }
+        File temporary = null;
         try {
             Uri uri = Uri.parse(rawUri);
             File cacheDir = new File(getContext().getCacheDir(), "jerrymusic-local");
@@ -159,16 +187,30 @@ public class LocalMusicPlugin extends Plugin {
             String extension = displayName.contains(".") ? displayName.substring(displayName.lastIndexOf('.') + 1) : "mp3";
             extension = extension.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
             if (extension.isEmpty() || extension.length() > 8) extension = "mp3";
-            File target = new File(cacheDir, Integer.toHexString(rawUri.hashCode()) + "." + extension);
-            if (!target.exists() || target.length() == 0L) {
+            DocumentFile source = DocumentFile.fromSingleUri(getContext(), uri);
+            long sourceSize = source == null ? -1L : source.length();
+            long sourceModified = source == null ? 0L : source.lastModified();
+            String cacheKey = Integer.toHexString((rawUri + ":" + sourceSize + ":" + sourceModified).hashCode());
+            File target = new File(cacheDir, cacheKey + "." + extension);
+            if (!target.exists() || target.length() == 0L || (sourceSize > 0L && target.length() != sourceSize)) {
+                temporary = new File(cacheDir, cacheKey + ".part");
+                if (temporary.exists()) temporary.delete();
                 try (InputStream input = getContext().getContentResolver().openInputStream(uri);
-                     FileOutputStream output = new FileOutputStream(target)) {
+                     FileOutputStream output = new FileOutputStream(temporary)) {
                     if (input == null) throw new IllegalStateException("Cannot open selected audio file");
                     byte[] buffer = new byte[64 * 1024];
                     int count;
                     while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                    output.getFD().sync();
                 }
+                if (temporary.length() == 0L || (sourceSize > 0L && temporary.length() != sourceSize)) {
+                    throw new IllegalStateException("Audio cache copy is incomplete");
+                }
+                if (target.exists() && !target.delete()) throw new IllegalStateException("Cannot replace old audio cache");
+                if (!temporary.renameTo(target)) throw new IllegalStateException("Cannot finalize audio cache");
+                temporary = null;
             }
+            trimMusicCache(cacheDir, target);
             JSObject response = new JSObject();
             response.put("path", target.getAbsolutePath());
             response.put("name", displayName);
@@ -177,6 +219,24 @@ public class LocalMusicPlugin extends Plugin {
             call.reject("No permission to read this audio file. Select the folder again.", e);
         } catch (Exception e) {
             call.reject("Could not prepare this audio file: " + e.getMessage(), e);
+        } finally {
+            if (temporary != null && temporary.exists()) temporary.delete();
+        }
+    }
+
+    private void trimMusicCache(File cacheDir, File keep) {
+        File[] files = cacheDir.listFiles();
+        if (files == null) return;
+        long total = 0L;
+        for (File file : files) if (file.isFile() && !file.getName().endsWith(".part")) total += file.length();
+        if (total <= 300L * 1024L * 1024L) return;
+        java.util.Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+        for (File file : files) {
+            if (total <= 250L * 1024L * 1024L) break;
+            if (!file.equals(keep) && file.isFile() && !file.getName().endsWith(".part")) {
+                long size = file.length();
+                if (file.delete()) total -= size;
+            }
         }
     }
 
