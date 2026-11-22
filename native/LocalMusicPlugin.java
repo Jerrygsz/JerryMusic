@@ -113,6 +113,9 @@ public class LocalMusicPlugin extends Plugin {
             return;
         }
         String query = call.getString("query", "").trim().toLowerCase(Locale.ROOT);
+        boolean forceRefresh = call.getBoolean("forceRefresh", false);
+        android.content.SharedPreferences cachePrefs = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (query.isEmpty() && !forceRefresh && treeUri.equals(cachePrefs.getString("cache_tree_uri", null))) { try { JSObject fast = new JSObject(); fast.put("tracks", new JSArray(cachePrefs.getString("tracks_cache", "[]"))); fast.put("cached", true); call.resolve(fast); return; } catch (Exception ignored) {} }
         try {
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(treeUri));
             if (root == null || !root.canRead()) {
