@@ -63,13 +63,13 @@ async function loadSavedLocalFolder(){
     $("#home-local-count").textContent=state.localTracks.length+" 首 · 已从缓存恢复";
    }
   }
-  loadLocalTracks({refresh:true,quiet:true});
+  if(!cached?.cached||!Array.isArray(cached.tracks)||!cached.tracks.length)loadLocalTracks({refresh:true,quiet:true});
  }catch{state.localFolder=null;renderLocalFolder()}
 }
 async function loadLocalTracks(options={}){
  if(!LocalMusic||!state.localFolder)return [];
  try{
-  const r=await LocalMusic.searchLocalMusic({query:""});
+  const r=await LocalMusic.searchLocalMusic({query:"",forceRefresh:!!options.refresh});
   state.localTracks=(r.tracks||[]).map(t=>({...t,source:"local"}));renderHomeLocal();
   $("#home-local-count").textContent=state.localTracks.length+" 首本地音乐";
   return state.localTracks;
@@ -121,12 +121,12 @@ const openFull=()=>{$("#full-player").classList.add("open");$("#full-player").se
 $("#mini-player-open").onclick=e=>{if(e.target.closest("#player-fav"))return;openFull()};
 $("#player").addEventListener("click",e=>{if(!e.target.closest("button,input"))openFull()});
 $("#full-close").onclick=()=>{$("#full-player").classList.remove("open");$("#full-player").setAttribute("aria-hidden","true")};
-$("#full-queue").onclick=()=>{$("#queue-panel").classList.add("open");renderQueue()};
+$("#full-queue").onclick=()=>openQueue();
 $("#full-play").onclick=()=>$("#play-btn").click();
 $("#full-prev").onclick=prev;$("#full-next").onclick=next;
 $("#full-shuffle").onclick=()=>$("#shuffle-btn").click();$("#full-repeat").onclick=()=>$("#repeat-btn").click();
 $("#full-fav").onclick=()=>state.current&&toggleFav(state.current);
-$("#queue-btn").onclick=()=>{$("#queue-panel").classList.toggle("open");renderQueue()};
+$("#queue-btn").onclick=()=>{$("#queue-panel").classList.contains("open")?closeQueue():openQueue()};
 $("#eq-open").onclick=()=>$("#eq-panel").classList.add("open");$("#eq-close").onclick=()=>$("#eq-panel").classList.remove("open");
 let eqContext=null,eqSource=null,eqLow=null,eqMid=null,eqHigh=null;
 function setupEQ(){
@@ -142,7 +142,7 @@ function setupEQ(){
 }
 function setEQ(low,mid,high){setupEQ();if(!eqContext)return;if(eqContext.state==="suspended")eqContext.resume();eqLow.gain.value=low;eqMid.gain.value=mid;eqHigh.gain.value=high;$("#eq-low").value=low;$("#eq-mid").value=mid;$("#eq-high").value=high}
 ["low","mid","high"].forEach(k=>$("#eq-"+k).oninput=()=>setEQ(+$("#eq-low").value,+$("#eq-mid").value,+$("#eq-high").value));
-$("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"?[7,2,0]:p==="vocal"?[-2,5,2]:p==="treble"?[0,1,7]:[0,0,0];setEQ(...v)});
+$("[data-eq]").forEach(b=>b.onclick=()=>{const p=b.dataset.eq;const v=p==="bass"?[8,3,0]:p==="vocal"?[-3,6,2]:p==="treble"?[0,2,8]:[0,0,0];setEQ(...v);$("[data-eq]").forEach(x=>x.classList.toggle("eq-selected",x===b));toast(({flat:"原声",bass:"低音增强",vocal:"人声增强",treble:"高音增强"})[p]+" 已应用")});
 let lyricLines=[],lyricRequest=0,lastActiveLyric=-1;
 async function lookupLyrics(track){
  const id=++lyricRequest;
@@ -174,7 +174,7 @@ $("#player-fav").onclick=()=>state.current&&toggleFav(state.current);
 $("#shuffle-btn").onclick=()=>{state.shuffle=!state.shuffle;$("#shuffle-btn").classList.toggle("control-active",state.shuffle);toast(state.shuffle?"随机播放已开启":"随机播放已关闭")};
 $("#repeat-btn").onclick=()=>{state.repeat=state.repeat==="all"?"one":state.repeat==="one"?"off":"all";$("#repeat-btn").classList.toggle("control-active",state.repeat!=="off");$("#repeat-btn").textContent=state.repeat==="one"?"↻¹":"↻";toast(state.repeat==="all"?"列表循环":state.repeat==="one"?"单曲循环":"关闭循环")};
 function renderQueue(){const el=$("#queue-list");if(!el)return;el.innerHTML=state.queue.length?state.queue.map((t,i)=>'<div class="queue-track '+(i===state.index?"playing":"")+'" data-q="'+i+'"><span>'+(i===state.index?"♫":i+1)+'</span><div><strong>'+esc(t.title)+'</strong><small>'+esc(t.artist)+'</small></div></div>').join(""):'<div class="empty-note">播放队列为空</div>';el.querySelectorAll("[data-q]").forEach(x=>x.onclick=()=>{state.index=+x.dataset.q;loadCurrent()})}
-$("#queue-close").onclick=()=>$("#queue-panel").classList.remove("open");
+function openQueue(){$("#queue-panel").classList.add("open");renderQueue()}\nfunction closeQueue(){$("#queue-panel").classList.remove("open")}\nconst queuePanel=$("#queue-panel");document.addEventListener("pointerdown",e=>{if(queuePanel.classList.contains("open")&&!queuePanel.contains(e.target)&&!e.target.closest("#queue-btn")&&!e.target.closest("#full-queue"))closeQueue()});let qTouchX=0,qTouchY=0;queuePanel.addEventListener("touchstart",e=>{qTouchX=e.changedTouches[0].clientX;qTouchY=e.changedTouches[0].clientY},{passive:true});queuePanel.addEventListener("touchend",e=>{const dx=e.changedTouches[0].clientX-qTouchX,dy=e.changedTouches[0].clientY-qTouchY;if(dx>65&&Math.abs(dx)>Math.abs(dy))closeQueue()},{passive:true});\n$("#queue-close").onclick=closeQueue;
 function renderRecent(){if(!$("#home-view").classList.contains("active"))return;renderTracks(state.recent.slice(0,8),"recent-list","recent")}
 function renderHomeLocal(){const el=$("#home-local-list");if(!el)return;$("#home-local-count").textContent=state.localTracks.length?state.localTracks.length+" 首已读取":"选择文件夹后自动读取";if(!$("#home-view").classList.contains("active"))return;const tracks=state.localTracks.slice(0,8);renderTracks(tracks,"home-local-list","home-local")}
 function renderLibrary(){const root=$("#library-content");$$("[data-library]").forEach(b=>b.classList.toggle("selected",b.dataset.library===state.libraryTab));if(state.libraryTab==="favorites"){root.innerHTML="";renderTracks(state.favorites,"library-content","favorites");return}root.innerHTML='<div class="create-row"><input id="playlist-name" maxlength="24" placeholder="给新歌单起个名字"><button id="create-playlist">创建歌单</button></div><div id="playlist-items"></div>';$("#create-playlist").onclick=()=>{const name=$("#playlist-name").value.trim();if(!name){toast("先给歌单起个名字");return}state.playlists.push({id:Date.now().toString(),name,tracks:[]});save();renderLibrary();toast("歌单已创建")};const list=$("#playlist-items");if(!state.playlists.length){list.innerHTML='<div class="empty-note">还没有歌单，创建一个自己的音乐角落</div>';return}list.innerHTML=state.playlists.map(p=>'<div class="playlist-card" data-open="'+p.id+'"><div><strong>'+esc(p.name)+'</strong><small>'+p.tracks.length+' 首歌曲</small></div><div><button class="text-btn" data-open-btn="'+p.id+'">打开</button> <button class="text-btn" data-delete="'+p.id+'">删除</button></div></div>').join("");list.querySelectorAll("[data-open-btn]").forEach(b=>b.onclick=e=>{e.stopPropagation();openPlaylist(b.dataset.openBtn)});list.querySelectorAll(".playlist-card").forEach(b=>b.onclick=e=>{if(!e.target.closest("[data-delete]"))openPlaylist(b.dataset.open)});list.querySelectorAll("[data-delete]").forEach(b=>b.onclick=e=>{e.stopPropagation();state.playlists=state.playlists.filter(p=>p.id!==b.dataset.delete);save();renderLibrary()})}
