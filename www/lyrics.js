@@ -1,6 +1,6 @@
 const CACHE_KEY = "jm_lyrics_cache_v1";
 const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
-const NEGATIVE_CACHE_TTL = 6 * 60 * 60 * 1000;
+const NEGATIVE_CACHE_TTL = 10 * 60 * 1000; // Retry failed matches sooner.
 const MAX_CACHE_ITEMS = 80;
 const PROVIDER_COOLDOWNS = new Map();
 let lastRequestAt = 0;
@@ -146,7 +146,7 @@ async function fromLocalSidecar(track) {
   const lines = parseLrc(text);
   return lines.length
     ? { lines, synced: true, plainLyrics: lines.map(line => line.text).join("\n"), source: "本地 LRC 文件", instrumental: false }
-    : null;
+    : (text.trim() ? { lines: plainLines(text), synced: false, plainLyrics: text, source: "本地歌词文件", instrumental: false } : null);
 }
 
 async function fromLrclib(track) {
@@ -238,17 +238,24 @@ export class LyricsEngine {
       ["LrcAPI", () => fromLrcCx(track)],
       ["lyrics.ovh", () => fromLyricsOvh(track)]
     ];
-    for (const [name, lookup] of providers) {
-      try {
-        const value = await lookup();
-        if (value?.lines?.length) {
-          cache[key] = { savedAt: Date.now(), value };
-          writeCache(cache);
-          return value;
-        }
-      } catch (error) {
-        console.warn("[JerryMusic lyrics] " + name + " failed:", error?.message || error);
-      }
+    // Race the providers: return the first usable lyric result rather than
+    // waiting for slow/unavailable services sequentially.
+    let settled = 0;
+    const pending = providers.map(([name, lookup]) => Promise.resolve().then(lookup)
+      .then(value => value?.lines?.length ? value : null)
+      .catch(error => { console.warn("[JerryMusic lyrics] " + name + " failed:", error?.message || error); return null; }));
+    const value = await new Promise(resolve => {
+      let finished = false;
+      pending.forEach(p => p.then(result => {
+        settled++;
+        if (result && !finished) { finished = true; resolve(result); }
+        else if (settled === pending.length && !finished) { finished = true; resolve(null); }
+      }));
+    });
+    if (value) {
+      cache[key] = { savedAt: Date.now(), value };
+      writeCache(cache);
+      return value;
     }
     cache[key] = { savedAt: Date.now(), value: null };
     writeCache(cache);
