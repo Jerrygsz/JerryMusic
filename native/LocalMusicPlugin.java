@@ -119,7 +119,13 @@ public class LocalMusicPlugin extends Plugin {
                 for (DocumentFile child : children) {
                     if (child.isFile() && child.getName() != null && child.getName().toLowerCase(Locale.ROOT).endsWith(".lrc")) {
                         String lrcName = child.getName();
-                        sidecarLyrics.putIfAbsent(lrcName.substring(0, lrcName.length() - 4).toLowerCase(Locale.ROOT), child);
+                        String lrcBase = lrcName.substring(0, lrcName.length() - 4).toLowerCase(Locale.ROOT);
+                        if (!sidecarLyrics.containsKey(lrcBase)) sidecarLyrics.put(lrcBase, child);
+                        int audioExtensionAt = lrcBase.lastIndexOf('.');
+                        if (audioExtensionAt > 0) {
+                            String withoutAudioExtension = lrcBase.substring(0, audioExtensionAt);
+                            if (!sidecarLyrics.containsKey(withoutAudioExtension)) sidecarLyrics.put(withoutAudioExtension, child);
+                        }
                     }
                 }
                 for (DocumentFile child : children) {
