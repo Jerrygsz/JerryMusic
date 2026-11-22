@@ -1,0 +1,19 @@
+name: JerryMusic Lyrics Validation
+on:
+  pull_request:
+    branches:
+      - fix/navigation-selector-crash-v2
+  push:
+    branches:
+      - feature/chinese-lyrics-matching-v2
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check lyrics engine
+        run: node --check www/lyrics.js
