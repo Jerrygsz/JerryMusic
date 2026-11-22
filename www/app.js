@@ -7,12 +7,25 @@ const lyricsEngine=new LyricsEngine();
 let lyricsRequest=0;
 let lyricLines=[];
 let activeLyricIndex=-1;
+function readStoredArray(key){
+  try{
+    const raw=localStorage.getItem(key);
+    if(!raw)return [];
+    const value=JSON.parse(raw);
+    if(Array.isArray(value))return value;
+    console.warn("[JerryMusic] Ignoring invalid stored array:",key);
+    return [];
+  }catch(error){
+    console.warn("[JerryMusic] Could not read stored data:",key,error);
+    return [];
+  }
+}
 const state={
   results:[],queue:[],index:-1,current:null,libraryTab:"favorites",searchSource:"online",
-  favorites:JSON.parse(localStorage.getItem("jm_favorites")||"[]"),
-  playlists:JSON.parse(localStorage.getItem("jm_playlists")||"[]"),
-  recent:JSON.parse(localStorage.getItem("jm_recent")||"[]"),
-  localFolder:null,selectionTarget:null,selectedIds:new Set(),activePlaylistId:null,homeLocalTracks:JSON.parse(localStorage.getItem("jm_local_tracks")||"[]")
+  favorites:readStoredArray("jm_favorites"),
+  playlists:readStoredArray("jm_playlists"),
+  recent:readStoredArray("jm_recent"),
+  localFolder:null,selectionTarget:null,selectedIds:new Set(),activePlaylistId:null,homeLocalTracks:readStoredArray("jm_local_tracks")
 };
 let playRequest=0;
 const save=()=>{localStorage.setItem("jm_favorites",JSON.stringify(state.favorites));localStorage.setItem("jm_playlists",JSON.stringify(state.playlists));localStorage.setItem("jm_recent",JSON.stringify(state.recent))};
