@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+import { LyricsEngine } from "./lyrics.js";\nconst $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const audio=$("#audio");
 const LocalMusic=window.JerryLocalMusic||null;
 const NativeCapacitor=window.JerryCapacitor||window.Capacitor||null;
@@ -176,7 +176,7 @@ function prev(){if(audio.currentTime>3){audio.currentTime=0;return}if(state.queu
 $("#play-btn").onclick=()=>{if(!state.current){toast("先去发现页选择一首歌");return}if(audio.paused)audio.play().catch(()=>toast("无法播放此音源"));else audio.pause()};
 $("#next-btn").onclick=next;$("#prev-btn").onclick=prev;audio.onended=next;
 audio.onplay=()=>$("#play-btn").textContent="Ⅱ";audio.onpause=()=>$("#play-btn").textContent="▶";
-audio.ontimeupdate=()=>{if(audio.duration){$("#seek").value=audio.currentTime/audio.duration*1000;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration)}};
+audio.ontimeupdate=()=>{if(audio.duration){$("#seek").value=audio.currentTime/audio.duration*1000;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration)}syncLyrics(audio.currentTime)};
 $("#seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("#seek").value/1000)};
 $("#player-fav").onclick=()=>state.current&&toggleFav(state.current);
 function renderQueue(){
