@@ -56,8 +56,9 @@ async function loadSavedLocalFolder(){
   if(!r?.uri){state.localFolder=null;renderLocalFolder();return}
   state.localFolder=r;renderLocalFolder();
   // Cached index is shown before any Storage Access Framework traversal begins.
+  let cached=null;
   if(LocalMusic.getCachedLocalMusic){
-   const cached=await LocalMusic.getCachedLocalMusic();
+   cached=await LocalMusic.getCachedLocalMusic();
    if(cached?.cached&&Array.isArray(cached.tracks)&&cached.tracks.length){
     state.localTracks=cached.tracks.map(t=>({...t,source:"local"}));renderHomeLocal();
     $("#home-local-count").textContent=state.localTracks.length+" 首 · 已从缓存恢复";
