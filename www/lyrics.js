@@ -111,7 +111,7 @@ function resultFrom(record, provider) {
   };
 }
 
-async function request(url, timeoutMs = 7000) {
+async function request(url, timeoutMs = 4500) {
   const host = new URL(url).host;
   const cooldownUntil = PROVIDER_COOLDOWNS.get(host) || 0;
   const waitForCooldown = Math.max(0, cooldownUntil - Date.now());
@@ -187,7 +187,7 @@ async function fromLrcCx(track) {
     artist: track.artist === "本地音乐" ? "" : (track.artist || ""),
     album: track.album || ""
   });
-  const response = await request("https://api.lrc.cx/api/v1/lyrics/advance?" + params.toString(), 8000);
+  const response = await request("https://api.lrc.cx/api/v1/lyrics/advance?" + params.toString(), 5500);
   const records = await response.json();
   if (Array.isArray(records) && records.length) {
     const ranked = records.map(record => ({ record, ...candidateScore(record, track) })).sort((a, b) => b.score - a.score);
@@ -206,7 +206,7 @@ async function fromLrcCx(track) {
 async function fromLyricsOvh(track) {
   if (!track.artist || track.artist === "本地音乐") return null;
   const url = "https://api.lyrics.ovh/v1/" + encodeURIComponent(track.artist) + "/" + encodeURIComponent(track.title || "");
-  const response = await request(url, 6000);
+  const response = await request(url, 4500);
   const data = await response.json();
   const lines = plainLines(data.lyrics || "");
   return lines.length ? { lines, synced: false, plainLyrics: data.lyrics, source: "lyrics.ovh", instrumental: false } : null;
