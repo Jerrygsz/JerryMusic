@@ -1,7 +1,12 @@
-import { LyricsEngine } from "./lyrics.js";\nconst $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+import { LyricsEngine } from "./lyrics.js";
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const audio=$("#audio");
 const LocalMusic=window.JerryLocalMusic||null;
 const NativeCapacitor=window.JerryCapacitor||window.Capacitor||null;
+const lyricsEngine=new LyricsEngine();
+let lyricsRequest=0;
+let lyricLines=[];
+let activeLyricIndex=-1;
 const state={
   results:[],queue:[],index:-1,current:null,libraryTab:"favorites",searchSource:"online",
   favorites:JSON.parse(localStorage.getItem("jm_favorites")||"[]"),
@@ -156,6 +161,7 @@ async function loadCurrent(){
   const t=state.queue[state.index];if(!t)return;
   if(typeof renderQueue==="function")renderQueue();
   const request=++playRequest;state.current=t;
+  loadLyricsForCurrent(t);
   $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.source==="local"?" · 本地音乐":"");
   $("#player-fav").textContent=isFav(t)?"♥":"♡";
   state.recent=[t,...state.recent.filter(x=>x.id!==t.id)].slice(0,20);save();renderRecent();
@@ -179,6 +185,64 @@ audio.onplay=()=>$("#play-btn").textContent="Ⅱ";audio.onpause=()=>$("#play-btn
 audio.ontimeupdate=()=>{if(audio.duration){$("#seek").value=audio.currentTime/audio.duration*1000;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration)}syncLyrics(audio.currentTime)};
 $("#seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("#seek").value/1000)};
 $("#player-fav").onclick=()=>state.current&&toggleFav(state.current);
+function setLyricsStatus(message){$("#lyrics-status").textContent=message}
+function renderLyrics(result){
+  const root=$("#lyrics-lines");
+  root.replaceChildren();
+  lyricLines=result?.lines||[];
+  activeLyricIndex=-1;
+  if(!lyricLines.length){root.innerHTML='<div class="lyrics-empty">暂时没有找到匹配歌词</div>';return}
+  lyricLines.forEach((line,index)=>{
+    const row=document.createElement("div");
+    row.className="lyric-line";
+    row.dataset.index=String(index);
+    row.textContent=line.text;
+    root.appendChild(row);
+  });
+}
+async function loadLyricsForCurrent(track){
+  const token=++lyricsRequest;
+  lyricLines=[];activeLyricIndex=-1;
+  $("#lyrics-track").textContent=(track.title||"")+(track.artist?" · "+track.artist:"");
+  $("#lyrics-lines").innerHTML='<div class="lyrics-empty">正在匹配歌词…</div>';
+  setLyricsStatus("正在依次尝试多个歌词源");
+  const result=await lyricsEngine.get(track);
+  if(token!==lyricsRequest||state.current?.id!==track.id)return;
+  if(!result){
+    renderLyrics(null);
+    setLyricsStatus("已尝试 LRCLIB、LrcAPI 和备用纯歌词源");
+    return;
+  }
+  renderLyrics(result);
+  setLyricsStatus((result.synced?"逐行同步":"纯文本歌词")+" · 来源："+result.source);
+  syncLyrics(audio.currentTime||0,true);
+}
+function syncLyrics(seconds,force=false){
+  if(!lyricLines.length||!lyricLines[0]||lyricLines[0].time===null)return;
+  let low=0,high=lyricLines.length-1,found=-1;
+  while(low<=high){
+    const mid=(low+high)>>1;
+    if(lyricLines[mid].time<=seconds){found=mid;low=mid+1}else high=mid-1;
+  }
+  if(found<0||found===activeLyricIndex)return;
+  const previous=activeLyricIndex;
+  activeLyricIndex=found;
+  const oldRow=previous>=0?$("#lyrics-lines").querySelector('[data-index="'+previous+'"]'):null;
+  const row=$("#lyrics-lines").querySelector('[data-index="'+found+'"]');
+  if(oldRow)oldRow.classList.remove("active");
+  if(row){row.classList.add("active");row.scrollIntoView({block:"center",behavior:force?"auto":"smooth"})}
+}
+function openLyrics(){
+  $("#lyrics-panel").classList.add("show");
+  $("#lyrics-panel").setAttribute("aria-hidden","false");
+  if(!state.current)setLyricsStatus("先播放一首歌曲，再自动匹配歌词");
+}
+function closeLyrics(){
+  $("#lyrics-panel").classList.remove("show");
+  $("#lyrics-panel").setAttribute("aria-hidden","true");
+}
+$("#lyrics-btn").onclick=()=>$("#lyrics-panel").classList.contains("show")?closeLyrics():openLyrics();
+$("#lyrics-close").onclick=closeLyrics;
 function renderQueue(){
   $("#queue-count").textContent=state.queue.length+" 首";
   const root=$("#queue-items");
