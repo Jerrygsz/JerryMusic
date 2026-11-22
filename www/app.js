@@ -7,6 +7,12 @@ const lyricsEngine=new LyricsEngine();
 let lyricsRequest=0;
 let lyricLines=[];
 let activeLyricIndex=-1;
+let lyricOffsetByTrack={};
+try{lyricOffsetByTrack=JSON.parse(localStorage.getItem('jm_lyrics_offsets_v1')||'{}')||{}}catch{lyricOffsetByTrack={}}
+const lyricOffsetStep=0.5;
+function currentLyricOffset(){return state.current?Number(lyricOffsetByTrack[String(state.current.id)]||0):0}
+function renderLyricOffset(){const label=$('#lyrics-offset-value');if(label){const value=currentLyricOffset();label.textContent=(value>0?'+':'')+value.toFixed(1)+'s'}}
+function adjustLyricOffset(delta){if(!state.current){toast('请先播放歌曲');return}const id=String(state.current.id);const next=Math.max(-15,Math.min(15,Math.round((currentLyricOffset()+delta)*10)/10));lyricOffsetByTrack[id]=next;try{localStorage.setItem('jm_lyrics_offsets_v1',JSON.stringify(lyricOffsetByTrack))}catch{}renderLyricOffset();activeLyricIndex=-1;syncLyrics(audio.currentTime||0,true);toast('歌词同步 '+(next>0?'+':'')+next.toFixed(1)+' 秒')}
 function readStoredArray(key){
   try{
     const raw=localStorage.getItem(key);
@@ -232,6 +238,7 @@ async function loadLyricsForCurrent(track){
 }
 function syncLyrics(seconds,force=false){
   if(!lyricLines.length||!lyricLines[0]||lyricLines[0].time===null)return;
+  seconds+=currentLyricOffset();
   let low=0,high=lyricLines.length-1,found=-1;
   while(low<=high){
     const mid=(low+high)>>1;
@@ -249,6 +256,7 @@ function syncLyrics(seconds,force=false){
 function openLyrics(){
   $("#lyrics-panel").classList.add("show");
   $("#lyrics-panel").setAttribute("aria-hidden","false");
+  renderLyricOffset();
   if(!state.current)setLyricsStatus("先播放一首歌曲，再自动匹配歌词");
   else syncLyrics(audio.currentTime||0,true);
 }
@@ -258,6 +266,14 @@ function closeLyrics(){
 }
 $("#lyrics-btn").onclick=()=>$("#lyrics-panel").classList.contains("show")?closeLyrics():openLyrics();
 $("#lyrics-close").onclick=closeLyrics;
+$("#lyrics-offset-minus").onclick=()=>adjustLyricOffset(-lyricOffsetStep);
+$("#lyrics-offset-plus").onclick=()=>adjustLyricOffset(lyricOffsetStep);
+$("#lyrics-offset-reset").onclick=()=>{if(!state.current)return;lyricOffsetByTrack[String(state.current.id)]=0;try{localStorage.setItem("jm_lyrics_offsets_v1",JSON.stringify(lyricOffsetByTrack))}catch{}renderLyricOffset();activeLyricIndex=-1;syncLyrics(audio.currentTime||0,true);toast("已重置歌词时间")};
+let lyricTouchStartY=0;
+const lyricsPanel=$("#lyrics-panel");
+lyricsPanel.addEventListener("touchstart",e=>{lyricTouchStartY=e.touches[0].clientY},{passive:true});
+lyricsPanel.addEventListener("touchend",e=>{if(e.changedTouches[0].clientY-lyricTouchStartY>85)closeLyrics()},{passive:true});
+document.addEventListener("pointerdown",e=>{if(lyricsPanel.classList.contains("show")&&!lyricsPanel.contains(e.target)&&!$("#lyrics-btn").contains(e.target))closeLyrics()});
 function renderQueue(){
   $("#queue-count").textContent=state.queue.length+" 首";
   const root=$("#queue-items");
