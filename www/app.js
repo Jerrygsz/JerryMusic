@@ -256,7 +256,7 @@ function syncLyrics(seconds,force=false){
   const expanded=$("#expanded-lyrics");if(expanded){expanded.querySelectorAll(".lyric-line.active").forEach(x=>x.classList.remove("active"));const mirror=expanded.querySelector('[data-index="'+found+'"]');if(mirror){mirror.classList.add("active");mirror.scrollIntoView({block:"center",behavior:force?"auto":"smooth"})}}
 }
 function openLyrics(){
-  expandPlayer();$("#lyrics-panel").classList.add("show");
+  $("#lyrics-panel").classList.add("show");
   $("#lyrics-panel").setAttribute("aria-hidden","false");
   renderLyricOffset();
   if(!state.current)setLyricsStatus("先播放一首歌曲，再自动匹配歌词");
@@ -314,9 +314,11 @@ function openPlaylist(id){const p=state.playlists.find(x=>x.id===id);if(!p)retur
 const player=$("#player");
 function expandPlayer(){closeLyrics();closeQueue();player.classList.add("expanded");player.setAttribute("aria-expanded","true")}
 function collapsePlayer(){player.classList.remove("expanded");player.setAttribute("aria-expanded","false")}
-player.querySelector(".player-meta").addEventListener("click",e=>{if(!e.target.closest("button"))expandPlayer()});
-$("#expanded-lyrics").addEventListener("click",()=>openLyrics());
-player.querySelector(".progress-wrap").addEventListener("click",e=>{if(e.target!==$("#seek"))expandPlayer()});
+/* Only non-control surfaces of the mini player open the full-screen player. */
+player.addEventListener("click",e=>{
+  if(e.target.closest("button,input,select,a"))return;
+  expandPlayer();
+});
 let playerGestureY=0;
 player.addEventListener("touchstart",e=>{playerGestureY=e.touches[0].clientY},{passive:true});
 player.addEventListener("touchend",e=>{const delta=e.changedTouches[0].clientY-playerGestureY;if(delta<-60)expandPlayer();else if(delta>80)collapsePlayer()},{passive:true});
