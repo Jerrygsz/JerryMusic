@@ -82,3 +82,14 @@
 @media(max-height:620px){.lyrics-panel{height:40dvh;bottom:160px}}
 
 .lyrics-sync-controls{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 0 7px;border-bottom:1px solid var(--line);flex:none}.lyrics-sync-controls span{font-size:10px;color:var(--muted);margin-right:4px}.lyrics-sync-controls button{min-width:34px;height:30px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);font-size:16px}.lyrics-sync-controls button:last-child{font-size:10px;padding:0 10px}.lyrics-sync-controls strong{min-width:46px;text-align:center;color:var(--lime);font-size:12px;font-variant-numeric:tabular-nums}
+
+/* Expanded player overlay mode */
+.player.expanded{bottom:0;height:min(88dvh,850px);padding-top:24px;padding-bottom:calc(20px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;box-shadow:0 -20px 55px #0009;z-index:9;display:flex;flex-direction:column;justify-content:flex-end}
+.player.expanded .player-meta{padding:14px 4px}
+.player.expanded .cover-mini{width:64px;height:64px;font-size:30px}
+.player.expanded .track-meta strong{font-size:17px}
+.player.expanded .track-meta small{font-size:12px}
+.player.expanded .progress-wrap{margin:16px 0 12px}
+.player.expanded .controls{gap:34px;margin-bottom:10px}
+.lyrics-panel.show{z-index:10}
+.lyrics-panel.show:has(~ .player.expanded){bottom:min(88dvh,850px)}
