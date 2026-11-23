@@ -84,7 +84,7 @@
 .lyrics-sync-controls{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 0 7px;border-bottom:1px solid var(--line);flex:none}.lyrics-sync-controls span{font-size:10px;color:var(--muted);margin-right:4px}.lyrics-sync-controls button{min-width:34px;height:30px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);font-size:16px}.lyrics-sync-controls button:last-child{font-size:10px;padding:0 10px}.lyrics-sync-controls strong{min-width:46px;text-align:center;color:var(--lime);font-size:12px;font-variant-numeric:tabular-nums}
 
 /* Expanded player overlay mode */
-.player.expanded{bottom:0;height:min(88dvh,850px);padding-top:24px;padding-bottom:calc(20px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;box-shadow:0 -20px 55px #0009;z-index:9;display:flex;flex-direction:column;justify-content:flex-end}
+.player.expanded{bottom:0;top:0;height:100dvh;max-width:none;padding:calc(20px + env(safe-area-inset-top)) 24px calc(20px + env(safe-area-inset-bottom));border-radius:0;box-shadow:0 -20px 55px #0009;z-index:9;display:flex;flex-direction:column;justify-content:flex-end}
 .player.expanded .player-meta{padding:14px 4px}
 .player.expanded .cover-mini{width:64px;height:64px;font-size:30px}
 .player.expanded .track-meta strong{font-size:17px}
@@ -93,3 +93,6 @@
 .player.expanded .controls{gap:34px;margin-bottom:10px}
 .lyrics-panel.show{z-index:10}
 .lyrics-panel.show:has(~ .player.expanded){bottom:28dvh;height:60dvh;min-height:250px;border-radius:20px 20px 0 0}
+
+.player.expanded .expanded-lyrics{display:flex;flex:1;min-height:0;overflow:auto;align-items:center;justify-content:center;text-align:center;margin:10px 0;padding:16px 4px;scrollbar-width:none}.expanded-lyrics{display:none}.player.expanded .expanded-lyrics{display:flex}.player.expanded .expanded-lyrics .lyric-line{font-size:15px;padding:8px}.player.expanded .expanded-lyrics .lyric-line.active{font-size:18px}.player.expanded .expanded-lyrics .lyrics-empty{color:var(--muted);padding:20px}.player.expanded .controls{margin-bottom:12px}.player.expanded .player-meta{flex:none}.player.expanded .progress-wrap{flex:none}.player.expanded #player-fav{display:none}.player.expanded .bottom-nav{display:none}
+body:has(.player.expanded) .bottom-nav{display:none}
