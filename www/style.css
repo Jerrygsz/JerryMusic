@@ -92,4 +92,4 @@
 .player.expanded .progress-wrap{margin:16px 0 12px}
 .player.expanded .controls{gap:34px;margin-bottom:10px}
 .lyrics-panel.show{z-index:10}
-.lyrics-panel.show:has(~ .player.expanded){bottom:min(88dvh,850px)}
+.lyrics-panel.show:has(~ .player.expanded){bottom:28dvh;height:60dvh;min-height:250px;border-radius:20px 20px 0 0}
