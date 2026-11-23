@@ -210,7 +210,7 @@ function renderLyrics(result){
   root.replaceChildren();
   lyricLines=result?.lines||[];
   activeLyricIndex=-1;
-  if(!lyricLines.length){root.innerHTML='<div class="lyrics-empty">暂时没有找到匹配歌词</div>';return}
+  if(!lyricLines.length){root.innerHTML='<div class="lyrics-empty">暂时没有找到匹配歌词</div>';const expanded=$("#expanded-lyrics");if(expanded)expanded.innerHTML=root.innerHTML;return}
   lyricLines.forEach((line,index)=>{
     const row=document.createElement("div");
     row.className="lyric-line";
@@ -218,6 +218,7 @@ function renderLyrics(result){
     row.textContent=line.text;
     root.appendChild(row);
   });
+  const expanded=$("#expanded-lyrics");if(expanded)expanded.innerHTML=root.innerHTML;
 }
 async function loadLyricsForCurrent(track){
   const token=++lyricsRequest;
@@ -252,6 +253,7 @@ function syncLyrics(seconds,force=false){
   const row=$("#lyrics-lines").querySelector('[data-index="'+found+'"]');
   if(oldRow)oldRow.classList.remove("active");
   if(row){row.classList.add("active");if($("#lyrics-panel").classList.contains("show"))row.scrollIntoView({block:"center",behavior:force?"auto":"smooth"})}
+  const expanded=$("#expanded-lyrics");if(expanded){expanded.querySelectorAll(".lyric-line.active").forEach(x=>x.classList.remove("active"));const mirror=expanded.querySelector('[data-index="'+found+'"]');if(mirror){mirror.classList.add("active");mirror.scrollIntoView({block:"center",behavior:force?"auto":"smooth"})}}
 }
 function openLyrics(){
   expandPlayer();$("#lyrics-panel").classList.add("show");
@@ -264,7 +266,7 @@ function closeLyrics(){
   $("#lyrics-panel").classList.remove("show");
   $("#lyrics-panel").setAttribute("aria-hidden","true");
 }
-$("#lyrics-btn").onclick=()=>$("#lyrics-panel").classList.contains("show")?closeLyrics():openLyrics();
+$("#lyrics-btn").onclick=e=>{e.stopPropagation();$("#lyrics-panel").classList.contains("show")?closeLyrics():openLyrics()};
 $("#lyrics-close").onclick=closeLyrics;
 $("#lyrics-offset-minus").onclick=()=>adjustLyricOffset(-lyricOffsetStep);
 $("#lyrics-offset-plus").onclick=()=>adjustLyricOffset(lyricOffsetStep);
@@ -273,7 +275,7 @@ let lyricTouchStartY=0;
 const lyricsPanel=$("#lyrics-panel");
 lyricsPanel.addEventListener("touchstart",e=>{lyricTouchStartY=e.touches[0].clientY},{passive:true});
 lyricsPanel.addEventListener("touchend",e=>{if(e.changedTouches[0].clientY-lyricTouchStartY>85)closeLyrics()},{passive:true});
-document.addEventListener("pointerdown",e=>{if(lyricsPanel.classList.contains("show")&&!lyricsPanel.contains(e.target)&&!$("#lyrics-btn").contains(e.target))closeLyrics()});
+document.addEventListener("pointerdown",e=>{if(lyricsPanel.classList.contains("show")&&!lyricsPanel.contains(e.target)&&!$("#lyrics-btn").contains(e.target)&&!player.contains(e.target))closeLyrics()});
 function renderQueue(){
   $("#queue-count").textContent=state.queue.length+" 首";
   const root=$("#queue-items");
@@ -310,13 +312,15 @@ function openPlaylist(id){const p=state.playlists.find(x=>x.id===id);if(!p)retur
 
 /* Expandable player and Android Bluetooth/media-key integration */
 const player=$("#player");
-function expandPlayer(){player.classList.add("expanded");player.setAttribute("aria-expanded","true")}
+function expandPlayer(){closeLyrics();closeQueue();player.classList.add("expanded");player.setAttribute("aria-expanded","true")}
 function collapsePlayer(){player.classList.remove("expanded");player.setAttribute("aria-expanded","false")}
 player.querySelector(".player-meta").addEventListener("click",e=>{if(!e.target.closest("button"))expandPlayer()});
+$("#expanded-lyrics").addEventListener("click",()=>openLyrics());
 player.querySelector(".progress-wrap").addEventListener("click",e=>{if(e.target!==$("#seek"))expandPlayer()});
 let playerGestureY=0;
 player.addEventListener("touchstart",e=>{playerGestureY=e.touches[0].clientY},{passive:true});
 player.addEventListener("touchend",e=>{const delta=e.changedTouches[0].clientY-playerGestureY;if(delta<-60)expandPlayer();else if(delta>80)collapsePlayer()},{passive:true});
+window.jerryNativeMediaControl=function(action){if(action==="play")audio.play().catch(()=>{});else if(action==="pause")audio.pause();else if(action==="toggle")audio.paused?audio.play().catch(()=>{}):audio.pause();else if(action==="next")next();else if(action==="previous")prev();};
 function updateMediaSession(track){
  if(!("mediaSession" in navigator))return;
  try{navigator.mediaSession.metadata=new MediaMetadata({title:track.title||"JerryMusic",artist:track.artist||"",album:"JerryMusic"})}catch{}
