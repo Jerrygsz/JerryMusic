@@ -181,7 +181,7 @@ async function loadCurrent(){
   if(typeof renderQueue==="function")renderQueue();
   const request=++playRequest;state.current=t;
   loadLyricsForCurrent(t);
-  $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.source==="local"?" · 本地音乐":"");
+  $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.source==="local"?" · 本地音乐":"");updateMediaSession(t);
   $("#player-fav").textContent=isFav(t)?"♥":"♡";
   state.recent=[t,...state.recent.filter(x=>x.id!==t.id)].slice(0,20);save();renderRecent();
   try{
@@ -254,7 +254,7 @@ function syncLyrics(seconds,force=false){
   if(row){row.classList.add("active");if($("#lyrics-panel").classList.contains("show"))row.scrollIntoView({block:"center",behavior:force?"auto":"smooth"})}
 }
 function openLyrics(){
-  $("#lyrics-panel").classList.add("show");
+  expandPlayer();$("#lyrics-panel").classList.add("show");
   $("#lyrics-panel").setAttribute("aria-hidden","false");
   renderLyricOffset();
   if(!state.current)setLyricsStatus("先播放一首歌曲，再自动匹配歌词");
@@ -307,4 +307,22 @@ function renderLibrary(){
 $$("[data-library]").forEach(b=>b.onclick=()=>{state.libraryTab=b.dataset.library;renderLibrary()});
 function addToPlaylist(t){if(!state.playlists.length)state.playlists.push({id:Date.now().toString(),name:"稍后再听",tracks:[]});const p=state.playlists[state.playlists.length-1];if(!p.tracks.some(x=>x.id===t.id))p.tracks.push(t);save();toast("已加入「"+p.name+"」")}
 function openPlaylist(id){const p=state.playlists.find(x=>x.id===id);if(!p)return;state.activePlaylistId=id;state.selectionTarget=null;state.selectedIds=new Set();$("#library-content").innerHTML='<div class="section-head"><h2>'+esc(p.name)+'</h2><button class="text-btn" id="back-playlists">返回</button></div><div id="playlist-tracks"></div>';$("#back-playlists").onclick=renderLibrary;renderTracks(p.tracks,"playlist-tracks")}
-renderRecent();renderLibrary();renderLocalFolder();renderLocalHome();loadSavedLocalFolder();
+
+/* Expandable player and Android Bluetooth/media-key integration */
+const player=$("#player");
+function expandPlayer(){player.classList.add("expanded");player.setAttribute("aria-expanded","true")}
+function collapsePlayer(){player.classList.remove("expanded");player.setAttribute("aria-expanded","false")}
+player.querySelector(".player-meta").addEventListener("click",e=>{if(!e.target.closest("button"))expandPlayer()});
+player.querySelector(".progress-wrap").addEventListener("click",e=>{if(e.target!==$("#seek"))expandPlayer()});
+let playerGestureY=0;
+player.addEventListener("touchstart",e=>{playerGestureY=e.touches[0].clientY},{passive:true});
+player.addEventListener("touchend",e=>{const delta=e.changedTouches[0].clientY-playerGestureY;if(delta<-60)expandPlayer();else if(delta>80)collapsePlayer()},{passive:true});
+function updateMediaSession(track){
+ if(!("mediaSession" in navigator))return;
+ try{navigator.mediaSession.metadata=new MediaMetadata({title:track.title||"JerryMusic",artist:track.artist||"",album:"JerryMusic"})}catch{}
+ const actions={play:()=>audio.play().catch(()=>{}),pause:()=>audio.pause(),previoustrack:()=>prev(),nexttrack:()=>next(),seekbackward:()=>{audio.currentTime=Math.max(0,audio.currentTime-10)},seekforward:()=>{audio.currentTime=Math.min(audio.duration||Infinity,audio.currentTime+10)},seekto:d=>{if(Number.isFinite(d.seekTime)&&audio.duration)audio.currentTime=Math.max(0,Math.min(audio.duration,d.seekTime))}};
+ for(const [name,fn] of Object.entries(actions)){try{navigator.mediaSession.setActionHandler(name,fn)}catch{}}
+}
+function updateMediaPlaybackState(){if("mediaSession" in navigator)try{navigator.mediaSession.playbackState=audio.paused?"paused":"playing"}catch{}}
+audio.addEventListener("play",updateMediaPlaybackState);audio.addEventListener("pause",updateMediaPlaybackState);
+\nrenderRecent();renderLibrary();renderLocalFolder();renderLocalHome();loadSavedLocalFolder();
