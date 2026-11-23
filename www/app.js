@@ -325,4 +325,4 @@ function updateMediaSession(track){
 }
 function updateMediaPlaybackState(){if("mediaSession" in navigator)try{navigator.mediaSession.playbackState=audio.paused?"paused":"playing"}catch{}}
 audio.addEventListener("play",updateMediaPlaybackState);audio.addEventListener("pause",updateMediaPlaybackState);
-\nrenderRecent();renderLibrary();renderLocalFolder();renderLocalHome();loadSavedLocalFolder();
+renderRecent();renderLibrary();renderLocalFolder();renderLocalHome();loadSavedLocalFolder();
