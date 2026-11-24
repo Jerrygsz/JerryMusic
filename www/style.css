@@ -169,3 +169,30 @@ body:has(.player.expanded) .bottom-nav{display:none}
 
 /* JerryMusic local-first listening archive dashboard */
 .library-hero{position:relative;overflow:hidden;min-height:214px;padding:23px;border-radius:24px;background:#d5f36a;color:#171912;margin:8px 0 16px}.library-hero .eyebrow{color:#46521b}.hero-top{display:flex;justify-content:space-between;align-items:center;position:relative;z-index:1}.live-dot{font-size:9px;letter-spacing:1.5px;font-weight:800;color:#39451a}.live-dot:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#526c21;margin-right:7px;vertical-align:1px}.hero-number{display:flex;align-items:baseline;gap:10px;margin-top:21px;position:relative;z-index:1}.hero-number strong{font-size:54px;line-height:1;font-weight:800;letter-spacing:-3px;font-variant-numeric:tabular-nums}.hero-number span{font-size:12px;font-weight:700}.library-hero p{font-size:11px;color:#414b24;margin:9px 0 14px;position:relative;z-index:1}.hero-action{border:0;border-radius:20px;padding:10px 14px;background:#171912;color:#f5f5f2;font-size:11px;font-weight:700;position:relative;z-index:1}.hero-art{position:absolute;right:18px;bottom:-44px;width:180px;height:180px;border:1px solid #1b241b38;border-radius:50%;display:grid;place-items:center;color:#1c2616;font-size:112px;transform:rotate(-14deg)}.stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:15px 0 24px}.stat-card{min-width:0;padding:14px 12px 13px;border:1px solid var(--line);border-radius:16px;background:#202329}.stat-card span,.stat-card small{display:block;color:var(--muted);font-size:9px}.stat-card strong{display:block;margin:9px 0 3px;font-size:clamp(17px,5vw,23px);font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.stat-card small{font-size:9px}@media(max-width:370px){.stats-grid{gap:6px}.stat-card{padding:12px 8px}.hero-number strong{font-size:48px}}
+
+
+/* JerryMusic tactile micro-interactions: quick, restrained and motion-safe. */
+button,.track,.playlist-card,.queue-track{
+  -webkit-tap-highlight-color:transparent;
+  transform-origin:center;
+}
+button{
+  transition:transform .13s cubic-bezier(.2,.8,.2,1),filter .16s ease,background-color .18s ease,border-color .18s ease,color .18s ease;
+}
+button:active:not(:disabled),.track:active,.playlist-card:active,.queue-track:active{
+  transform:scale(.975);
+  filter:brightness(1.12);
+}
+.controls .play-btn:active:not(:disabled){transform:scale(.91)}
+.nav-item:active:not(:disabled){transform:scale(.94)}
+.track{transition:transform .16s cubic-bezier(.2,.8,.2,1),background .18s ease,border-color .18s ease}
+.playlist-card{transition:transform .16s cubic-bezier(.2,.8,.2,1),background .18s ease,outline-color .18s ease}
+.queue-track{transition:transform .16s cubic-bezier(.2,.8,.2,1),background .18s ease}
+button:focus-visible,.track:focus-visible,.queue-track:focus-visible{
+  outline:2px solid var(--lime);
+  outline-offset:3px;
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  button:active:not(:disabled),.track:active,.playlist-card:active,.queue-track:active{transform:none}
+}
