@@ -114,9 +114,75 @@ async function loadSavedLocalFolder(){
   try{const result=await LocalMusic.getFolder();if(result?.uri){state.localFolder=result;renderLocalFolder()}}
   catch{state.localFolder=null;renderLocalFolder()}
 }
+const onlineEnrichmentInFlight=new Set();
+let localSearchSequence=0;
+function applyEnrichedTrack(track,remote){
+  const fields=["album","albumArtist","year","genre","artworkPath","musicBrainzRecordingId","musicBrainzReleaseId"];
+  const merge=item=>{
+    if(!item||item.id!==track.id)return item;
+    const next={...item};
+    for(const field of fields){
+      if(remote[field] && (!next[field] || field==="artworkPath")) next[field]=remote[field];
+    }
+    return next;
+  };
+  state.results=state.results.map(merge);
+  state.homeLocalTracks=state.homeLocalTracks.map(merge);
+  state.recent=state.recent.map(merge);
+  state.favorites=state.favorites.map(merge);
+  state.playlists=state.playlists.map(p=>({...p,tracks:(p.tracks||[]).map(merge)}));
+  state.queue=state.queue.map(merge);
+  if(state.current?.id===track.id){
+    state.current=merge(state.current);
+    $("#now-artist").textContent=state.current.artist+(state.current.album?" · "+state.current.album:"")+" · 本地音乐";
+    renderPlayerArtwork(state.current);
+    updateMediaSession(state.current);
+  }
+  try{localStorage.setItem("jm_local_tracks",JSON.stringify(state.homeLocalTracks))}catch{}
+  save();
+  if($("#results-list"))renderTracks(state.results,"results-list");
+  if($("#local-home-list"))renderLocalHome();
+  if($("#recent-list"))renderRecent();
+  renderHomeDashboard();
+  if(state.libraryTab==="favorites"&&$("#library-content"))renderLibrary();
+}
+async function enrichMissingTracks(items,sequence){
+  if(!LocalMusic||!items?.length)return;
+  let newLookups=0,changed=0;
+  for(const track of items){
+    if(newLookups>=5)break;
+    if(!track?.uri||!track.title||!track.artist||track.artist==="本地音乐")continue;
+    if(onlineEnrichmentInFlight.has(track.id))continue;
+    onlineEnrichmentInFlight.add(track.id);
+    try{
+      const result=await LocalMusic.enrichTrack({
+        uri:track.uri,title:track.title,artist:track.artist,
+        album:track.album||"",durationMs:String(track.durationMs||"")
+      });
+      if(result?.reason==="recently_checked"||result?.reason==="already_complete")continue;
+      if(result?.reason==="no_confident_match"||result?.reason==="no_matching_release"||result?.updated)newLookups++;
+      if(result?.updated){
+        applyEnrichedTrack(track,result);
+        changed++;
+      }
+    }catch(error){
+      console.debug("[JerryMusic] Online metadata lookup paused:",error);
+      break;
+    }finally{
+      onlineEnrichmentInFlight.delete(track.id);
+    }
+    if(sequence===localSearchSequence){
+      $("#search-status").textContent="本地扫描完成 · 在线资料匹配 "+newLookups+"/5"+(changed?" · 已补全 "+changed+" 首":"");
+    }
+  }
+  if(sequence===localSearchSequence&&newLookups>0){
+    $("#search-status").textContent="本地扫描完成 · 本轮在线检查 "+newLookups+" 首"+(changed?"，成功补全 "+changed+" 首":"，未找到足够可靠的匹配");
+  }
+}
 async function searchLocal(q){
   if(!LocalMusic){$("#search-status").textContent="本地音乐功能尚未包含在当前 APK 中，请安装最新构建";return}
   if(!state.localFolder){$("#search-status").textContent="请先选择手机中的音乐文件夹";return}
+  const sequence=++localSearchSequence;
   $("#search-status").textContent="正在扫描已授权文件夹…";$("#results-list").innerHTML="";
   try{
     const result=await LocalMusic.searchLocalMusic({query:q||""});
@@ -126,6 +192,7 @@ async function searchLocal(q){
     const detail="已检查 "+(result.audioScanned??items.length)+" 个音频文件";
     const limit=result.truncated?" · 本次结果达到扫描上限，缩小文件夹范围或增加关键词可继续查找":"";
     $("#search-status").textContent=items.length?("找到 "+items.length+" 首本地音乐 · "+detail+limit):("没有找到匹配音乐 · "+detail+"；支持 MP3、M4A、AAC、FLAC、WAV、OGG");
+    if(!q.trim()&&items.length)void enrichMissingTracks(items,sequence);
   }catch(e){$("#search-status").textContent="读取本地音乐失败："+(e.message||e)}
 }
 $("#local-search-form").addEventListener("submit",e=>{e.preventDefault();searchLocal($("#local-search-input").value.trim())});
