@@ -283,3 +283,20 @@ button:focus-visible,.track:focus-visible,.queue-track:focus-visible{
   height:5px;
   filter:brightness(1.2);
 }
+
+
+/* Stage 4: calm, explicit feedback while a local track is being prepared. */
+.player.is-loading .cover-mini{
+  animation:jm-track-loading 1s ease-in-out infinite alternate;
+}
+.controls .play-btn.is-loading{
+  cursor:wait;
+  opacity:.72;
+}
+@keyframes jm-track-loading{
+  from{opacity:.62;transform:scale(.97)}
+  to{opacity:1;transform:scale(1)}
+}
+@media(prefers-reduced-motion:reduce){
+  .player.is-loading .cover-mini{animation:none;opacity:.8}
+}
