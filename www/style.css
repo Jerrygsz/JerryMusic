@@ -196,3 +196,55 @@ button:focus-visible,.track:focus-visible,.queue-track:focus-visible{
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   button:active:not(:disabled),.track:active,.playlist-card:active,.queue-track:active{transform:none}
 }
+
+/* Stage 2: smooth compact-to-fullscreen player transition.
+   Keep the compact player in the same fixed-position layout so its geometry
+   can interpolate instead of jumping from bottom:auto to top:0. */
+.player{
+  top:calc(100dvh - 190px);
+  bottom:auto;
+  width:min(100%,760px);
+  height:128px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto auto;
+  gap:0;
+  border-radius:18px 18px 0 0;
+  overflow:hidden;
+  transition:
+    top .42s cubic-bezier(.22,.8,.22,1),
+    height .42s cubic-bezier(.22,.8,.22,1),
+    width .42s cubic-bezier(.22,.8,.22,1),
+    border-radius .36s ease,
+    padding .36s ease,
+    box-shadow .36s ease,
+    background-color .36s ease;
+  will-change:top,height;
+}
+.player.expanded{
+  top:0;
+  bottom:auto;
+  width:100%;
+  height:100dvh;
+}
+@keyframes jm-player-content-in{
+  from{opacity:0;transform:translateY(9px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.player.expanded .player-meta{animation:jm-player-content-in .34s ease both}
+.player.expanded .expanded-lyrics{animation:jm-player-content-in .4s .04s ease both}
+.player.expanded .progress-wrap{animation:jm-player-content-in .34s .08s ease both}
+.player.expanded .controls{animation:jm-player-content-in .34s .1s ease both}
+@media(max-height:620px){
+  .player.expanded{padding-top:calc(10px + env(safe-area-inset-top));padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+  .player.expanded .player-meta{gap:9px}
+  .player.expanded .controls{padding-top:3px}
+}
+@media(prefers-reduced-motion:reduce){
+  .player,.player.expanded .player-meta,.player.expanded .expanded-lyrics,
+  .player.expanded .progress-wrap,.player.expanded .controls{
+    animation:none!important;
+    transition:none!important;
+    will-change:auto;
+  }
+}
