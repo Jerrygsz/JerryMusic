@@ -77,10 +77,10 @@
   <aside id="lyrics-panel" class="lyrics-panel" aria-label="歌词" aria-hidden="true">
     <div class="lyrics-head">
       <div><span class="eyebrow">NOW PLAYING</span><strong id="lyrics-track">歌词</strong><small id="lyrics-status">等待播放</small></div>
-      <button id="lyrics-close" class="icon-btn" type="button" aria-label="关闭歌词">×</button>
+      <div class="lyrics-actions"><button id="lyrics-import-btn" class="text-btn" type="button">导入本地歌词</button><button id="lyrics-close" class="icon-btn" type="button" aria-label="关闭歌词">×</button></div>
     </div>
     <div class="lyrics-sync-controls" aria-label="歌词同步微调"><span>同步微调</span><button id="lyrics-offset-minus" type="button" aria-label="歌词提前半秒">−</button><strong id="lyrics-offset-value">0.0s</strong><button id="lyrics-offset-plus" type="button" aria-label="歌词延后半秒">+</button><button id="lyrics-offset-reset" type="button">重置</button></div>
-    <div id="lyrics-lines" class="lyrics-lines"><div class="lyrics-empty">播放歌曲后自动匹配歌词</div></div>
+    <input id="lyrics-file-input" type="file" accept=".lrc,.txt,text/plain" hidden><div id="lyrics-lines" class="lyrics-lines"><div class="lyrics-empty">播放歌曲后自动匹配歌词</div></div>
   </aside>
   <audio id="audio" preload="metadata"></audio>
   <div id="toast" class="toast"></div>
