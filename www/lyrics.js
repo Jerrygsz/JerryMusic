@@ -1,4 +1,4 @@
-const CACHE_KEY = "jm_lyrics_cache_v1";
+const CACHE_KEY = "jm_lyrics_cache_v2";
 const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 const NEGATIVE_CACHE_TTL = 6 * 60 * 60 * 1000;
 const MAX_CACHE_ITEMS = 80;
@@ -6,11 +6,20 @@ const PROVIDER_COOLDOWNS = new Map();
 let lastRequestAt = 0;
 
 function normalize(value) {
-  return String(value || "")
-    .toLowerCase()
+  return String(value || "").toLowerCase()
     .replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g, " ")
-    .replace(/feat\.?|featuring|ft\.?/g, " ")
-    .replace(/[^\p{L}\p{N}]+/gu, "");
+    .replace(/\b(feat\.?|featuring|ft\.?|with)\b/gi, " ")
+    .replace(/\b(official|audio|video|music video|lyrics|lyric|remastered|live|demo)\b/gi, " ")
+    .replace(/(完整版|官方版|伴奏|纯音乐|无损|高清版|电视剧版|电影版|片尾曲|主题曲|插曲)/g, " ")
+    .replace(/[\s_]+/g, " ").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+function titleVariants(value) {
+  const raw=String(value||"").trim();
+  const cleaned=raw.replace(/\([^)]*\)|（[^）]*）|\[[^\]]*\]|【[^】]*】/g," ")
+    .replace(/\b(official|audio|video|lyrics|lyric|remastered|live|demo)\b/gi," ")
+    .replace(/\s+/g," ").trim();
+  const dash=raw.split(/\s[-–—]\s/)[0].trim();
+  return [...new Set([raw,cleaned,dash].filter(Boolean))];
 }
 
 function similarity(a, b) {
@@ -82,12 +91,16 @@ function durationSeconds(track) {
 }
 
 function candidateScore(candidate, track) {
-  const titleScore = similarity(candidate.trackName || candidate.name || candidate.title, track.title);
+  const title = candidate.trackName || candidate.name || candidate.title || candidate.song || candidate.songName || "";
+  const titleScore = similarity(title, track.title);
+  const rawArtist = candidate.artistName || candidate.artist || candidate.artists || candidate.singer || candidate.singers || "";
+  const candidateArtist = Array.isArray(rawArtist) ? rawArtist.join(" ") : String(rawArtist || "");
   const artistScore = track.artist && track.artist !== "本地音乐"
-    ? similarity(candidate.artistName || candidate.artist, track.artist)
+    ? similarity(candidateArtist, track.artist)
     : 0.55;
   const targetDuration = durationSeconds(track);
-  const foundDuration = Number(candidate.duration || 0);
+  const rawDuration = Number(candidate.duration || candidate.durationSeconds || candidate.length || 0);
+  const foundDuration = rawDuration > 10000 ? rawDuration / 1000 : rawDuration;
   let durationScore = 0.5;
   if (targetDuration && foundDuration) {
     const diff = Math.abs(targetDuration - foundDuration);
@@ -150,66 +163,35 @@ async function fromLocalSidecar(track) {
 }
 
 async function fromLrclib(track) {
-  const params = new URLSearchParams({
-    track_name: track.title || "",
-    artist_name: track.artist && track.artist !== "本地音乐" ? track.artist : ""
-  });
-  if (track.album) params.set("album_name", track.album);
-  const duration = durationSeconds(track);
-  if (duration) params.set("duration", String(Math.round(duration)));
-
-  if (track.artist && track.artist !== "本地音乐") {
-    try {
-      const exact = await request("https://lrclib.net/api/get?" + params.toString());
-      const record = await exact.json();
-      const result = resultFrom(record, "LRCLIB");
-      if (result) return result;
-    } catch (error) {
-      if (String(error.message).includes("限流")) throw error;
-    }
+  const titles=titleVariants(track.title), artist=track.artist && track.artist !== "本地音乐" ? track.artist : "", duration=durationSeconds(track);
+  const queries=[]; for(const title of titles){if(artist)queries.push({track_name:title,artist_name:artist});queries.push({track_name:title});}
+  const seen=new Set();
+  for(const query of queries){const key=JSON.stringify(query);if(seen.has(key))continue;seen.add(key);
+    try{const response=await request("https://lrclib.net/api/search?"+new URLSearchParams(query).toString(),7000);const records=await response.json();if(!Array.isArray(records)||!records.length)continue;
+      const ranked=records.map(record=>({record,...candidateScore(record,track)})).sort((a,b)=>b.score-a.score);const best=ranked[0];
+      if(best&&best.titleScore>=0.68&&(!artist||best.artistScore>=0.30)&&best.durationScore!==0){const result=resultFrom(best.record,"LRCLIB");if(result)return result;}
+    }catch(error){if(String(error.message).includes("限流"))throw error;}
   }
-
-  const searchParams = new URLSearchParams();
-  if (track.title) searchParams.set("track_name", track.title);
-  if (track.artist && track.artist !== "本地音乐") searchParams.set("artist_name", track.artist);
-  const response = await request("https://lrclib.net/api/search?" + searchParams.toString());
-  const records = await response.json();
-  if (!Array.isArray(records) || !records.length) return null;
-  const ranked = records.map(record => ({ record, ...candidateScore(record, track) })).sort((a, b) => b.score - a.score);
-  const best = ranked[0];
-  if (!best || best.titleScore < 0.68 || best.artistScore < 0.35 || best.durationScore === 0) return null;
-  return resultFrom(best.record, "LRCLIB");
+  if(artist)for(const title of titles){const params=new URLSearchParams({track_name:title,artist_name:artist});if(track.album)params.set("album_name",track.album);if(duration)params.set("duration",String(Math.round(duration)));
+    try{const response=await request("https://lrclib.net/api/get?"+params.toString(),7000);const result=resultFrom(await response.json(),"LRCLIB");if(result)return result;}catch(error){if(String(error.message).includes("限流"))throw error;}}
+  return null;
 }
 
 async function fromLrcCx(track) {
-  const params = new URLSearchParams({
-    title: track.title || "",
-    artist: track.artist === "本地音乐" ? "" : (track.artist || ""),
-    album: track.album || ""
-  });
-  const response = await request("https://api.lrc.cx/api/v1/lyrics/advance?" + params.toString(), 8000);
-  const records = await response.json();
-  if (Array.isArray(records) && records.length) {
-    const ranked = records.map(record => ({ record, ...candidateScore(record, track) })).sort((a, b) => b.score - a.score);
-    const best = ranked[0];
-    if (best && best.titleScore >= 0.62 && best.artistScore >= 0.3) {
-      const result = resultFrom({ lyrics: best.record.lyrics }, "LrcAPI");
-      if (result) return result;
-    }
-  }
-  const single = await request("https://api.lrc.cx/api/v1/lyrics/single?" + params.toString(), 8000);
-  const lrc = (await single.text()).trim();
-  const lines = parseLrc(lrc);
-  return lines.length ? { lines, synced: true, plainLyrics: lines.map(line => line.text).join("\n"), source: "LrcAPI", instrumental: false } : null;
+  for(const title of titleVariants(track.title)){const params=new URLSearchParams({title,artist:track.artist==="本地音乐"?"":(track.artist||""),album:track.album||""});
+    try{const response=await request("https://api.lrc.cx/api/v1/lyrics/advance?"+params.toString(),8000);const records=await response.json();
+      if(Array.isArray(records)&&records.length){const ranked=records.map(record=>({record,...candidateScore(record,track)})).sort((a,b)=>b.score-a.score);const best=ranked[0];
+        if(best&&best.titleScore>=0.65&&(!track.artist||track.artist==="本地音乐"||best.artistScore>=0.30)){const result=resultFrom({lyrics:best.record.lyrics},"LrcAPI");if(result)return result;}}
+    }catch(error){console.warn("[JerryMusic lyrics] LrcAPI search failed:",error?.message||error)}
+    try{const single=await request("https://api.lrc.cx/api/v1/lyrics/single?"+params.toString(),8000);const lines=parseLrc((await single.text()).trim());if(lines.length)return {lines,synced:true,plainLyrics:lines.map(line=>line.text).join("\n"),source:"LrcAPI",instrumental:false};}catch(error){console.warn("[JerryMusic lyrics] LrcAPI single failed:",error?.message||error)}
+  }return null;
 }
 
 async function fromLyricsOvh(track) {
-  if (!track.artist || track.artist === "本地音乐") return null;
-  const url = "https://api.lyrics.ovh/v1/" + encodeURIComponent(track.artist) + "/" + encodeURIComponent(track.title || "");
-  const response = await request(url, 6000);
-  const data = await response.json();
-  const lines = plainLines(data.lyrics || "");
-  return lines.length ? { lines, synced: false, plainLyrics: data.lyrics, source: "lyrics.ovh", instrumental: false } : null;
+  if(!track.artist||track.artist==="本地音乐")return null;
+  for(const title of titleVariants(track.title)){const url="https://api.lyrics.ovh/v1/"+encodeURIComponent(track.artist)+"/"+encodeURIComponent(title);
+    try{const response=await request(url,6000);const data=await response.json();const lines=plainLines(data.lyrics||"");if(lines.length)return {lines,synced:false,plainLyrics:data.lyrics,source:"lyrics.ovh",instrumental:false};}catch(error){console.warn("[JerryMusic lyrics] lyrics.ovh failed:",error?.message||error)}}
+  return null;
 }
 
 export class LyricsEngine {

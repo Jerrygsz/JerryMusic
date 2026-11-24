@@ -1,0 +1,22 @@
+name: JerryMusic Lyrics Validation
+on:
+  pull_request:
+    branches:
+      - fix/navigation-selector-crash-v2
+  push:
+    branches:
+      - feature/chinese-lyrics-matching-v2
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check lyrics engine
+        run: |
+          node --input-type=module --check < www/lyrics.js
+          cp www/lyrics.js /tmp/jerrymusic-lyrics.mjs
+          node --input-type=module -e "import('file:///tmp/jerrymusic-lyrics.mjs').then(({parseLrc}) => { const lines = parseLrc('[offset:+500]\n[00:01.25]one\n[00:02.50][00:03.00]two'); const times = lines.map(x => x.time); if (lines.length !== 3 || times.some((x,i) => Math.abs(x - [1.75,3,3.5][i]) > 0.001)) process.exit(1); console.log('LRC parser smoke test passed'); })"
