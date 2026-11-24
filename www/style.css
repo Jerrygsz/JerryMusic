@@ -248,3 +248,20 @@ button:focus-visible,.track:focus-visible,.queue-track:focus-visible{
     will-change:auto;
   }
 }
+
+/* Stage 2 refinement: FLIP animation moves the player using compositor transforms.
+   Avoid animating top/height/width, which repeatedly recalculates the mobile layout. */
+.player{
+  transition:none!important;
+  transform-origin:top left;
+  backface-visibility:hidden;
+  will-change:transform;
+}
+.player.expanded{transition:none!important}
+.player.expanded .player-meta,
+.player.expanded .expanded-lyrics,
+.player.expanded .progress-wrap,
+.player.expanded .controls{animation:none!important}
+@media(prefers-reduced-motion:reduce){
+  .player{will-change:auto}
+}
