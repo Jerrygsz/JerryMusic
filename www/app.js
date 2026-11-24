@@ -241,6 +241,8 @@ async function loadLyricsForCurrent(track){
   lyricLines=[];activeLyricIndex=-1;
   $("#lyrics-track").textContent=(track.title||"")+(track.artist?" · "+track.artist:"");
   $("#lyrics-lines").innerHTML='<div class="lyrics-empty">正在匹配歌词…</div>';
+  const manual=readManualLyrics(track);
+  if(manual){loadManualLyrics(track,manual);return;}
   setLyricsStatus("正在依次尝试多个歌词源");
   const result=await lyricsEngine.get(track);
   if(token!==lyricsRequest||state.current?.id!==track.id)return;
