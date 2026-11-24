@@ -221,14 +221,30 @@ public class LocalMusicPlugin extends Plugin {
     private String downloadCoverArt(String releaseId, String fingerprint) {
         HttpURLConnection connection = null;
         try {
-            String endpoint = "https://coverartarchive.org/release/" + releaseId + "/front-500";
-            connection = (HttpURLConnection) new URL(endpoint).openConnection();
+            URL url = new URL("https://coverartarchive.org/release/" + releaseId + "/front-500");
+            connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(12000);
             connection.setReadTimeout(20000);
-            connection.setInstanceFollowRedirects(true);
+            connection.setInstanceFollowRedirects(false);
             connection.setRequestProperty("User-Agent", "JerryMusic/1.0 (https://github.com/Jerrygsz/JerryMusic)");
             int status = connection.getResponseCode();
+            if (status >= 300 && status < 400) {
+                String location = connection.getHeaderField("Location");
+                if (location == null || location.isEmpty()) return "";
+                if (location.startsWith("http://")) location = "https://" + location.substring(7);
+                URL redirected = new URL(location);
+                String host = redirected.getHost().toLowerCase(Locale.ROOT);
+                if (!(host.equals("archive.org") || host.endsWith(".archive.org"))) return "";
+                connection.disconnect();
+                connection = (HttpURLConnection) redirected.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(12000);
+                connection.setReadTimeout(20000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("User-Agent", "JerryMusic/1.0 (https://github.com/Jerrygsz/JerryMusic)");
+                status = connection.getResponseCode();
+            }
             if (status < 200 || status >= 300) return "";
             String contentType = connection.getContentType();
             if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) return "";
@@ -279,7 +295,6 @@ public class LocalMusicPlugin extends Plugin {
             if (connection != null) connection.disconnect();
         }
     }
-
     private String normalizeMusicText(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
