@@ -203,9 +203,25 @@ function next(){if(state.queue.length){state.index=(state.index+1)%state.queue.l
 function prev(){if(audio.currentTime>3){audio.currentTime=0;return}if(state.queue.length){state.index=(state.index-1+state.queue.length)%state.queue.length;loadCurrent()}}
 $("#play-btn").onclick=()=>{if(!state.current){toast("先去发现页选择一首歌");return}if(audio.paused)audio.play().catch(()=>toast("无法播放此音源"));else audio.pause()};
 $("#next-btn").onclick=next;$("#prev-btn").onclick=prev;audio.onended=()=>{persistStats();next()};
-audio.onplay=()=>{$("#play-btn").textContent="Ⅱ";if(!currentPlayRecorded){currentPlayRecorded=true;recordTrackPlay(state.current)}lastStatsTick=audio.currentTime||0};audio.onpause=()=>{$("#play-btn").textContent="▶";lastStatsTick=0;persistStats();lastStatsPersistAt=Date.now()};
-audio.ontimeupdate=()=>{if(audio.duration){$("#seek").value=audio.currentTime/audio.duration*1000;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration)}if(!audio.paused&&state.current){const now=audio.currentTime||0,delta=now-lastStatsTick;if(delta>0&&delta<=5){totalListenSeconds+=delta;const entry=playStats[statsKey(state.current)];if(entry)entry.listenedSeconds=(entry.listenedSeconds||0)+delta;if(Date.now()-lastStatsPersistAt>=10000){persistStats();lastStatsPersistAt=Date.now()}}lastStatsTick=now}syncLyrics(audio.currentTime)};
-$("#seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("#seek").value/1000)};
+function syncPlaybackButton(){
+  const button=$("#play-btn"),playing=!audio.paused;
+  button.textContent=playing?"Ⅱ":"▶";
+  button.setAttribute("aria-label",playing?"暂停":"播放");
+  button.setAttribute("aria-pressed",String(playing));
+  button.classList.toggle("is-playing",playing);
+}
+audio.onplay=()=>{syncPlaybackButton();if(!currentPlayRecorded){currentPlayRecorded=true;recordTrackPlay(state.current)}lastStatsTick=audio.currentTime||0};
+audio.onpause=()=>{syncPlaybackButton();lastStatsTick=0;persistStats();lastStatsPersistAt=Date.now()};
+const seek=$("#seek");
+let isSeeking=false;
+function updateSeekLabel(){
+  seek.setAttribute("aria-valuetext",fmt(audio.currentTime||0)+" / "+fmt(audio.duration||0));
+}
+seek.addEventListener("pointerdown",()=>{isSeeking=true;$("#player .progress-wrap").classList.add("is-seeking")});
+seek.addEventListener("pointercancel",()=>{isSeeking=false;$("#player .progress-wrap").classList.remove("is-seeking")});
+seek.addEventListener("change",()=>{isSeeking=false;$("#player .progress-wrap").classList.remove("is-seeking");updateSeekLabel()});
+audio.ontimeupdate=()=>{if(audio.duration){if(!isSeeking)seek.value=audio.currentTime/audio.duration*1000;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration);updateSeekLabel()}if(!audio.paused&&state.current){const now=audio.currentTime||0,delta=now-lastStatsTick;if(delta>0&&delta<=5){totalListenSeconds+=delta;const entry=playStats[statsKey(state.current)];if(entry)entry.listenedSeconds=(entry.listenedSeconds||0)+delta;if(Date.now()-lastStatsPersistAt>=10000){persistStats();lastStatsPersistAt=Date.now()}}lastStatsTick=now}syncLyrics(audio.currentTime)};
+seek.oninput=()=>{if(audio.duration){isSeeking=true;audio.currentTime=audio.duration*(+seek.value/1000);updateSeekLabel()}};
 $("#player-fav").onclick=()=>state.current&&toggleFav(state.current);
 function setLyricsStatus(message){$("#lyrics-status").textContent=message}
 function renderLyrics(result){
@@ -402,4 +418,4 @@ function updateMediaSession(track){
 }
 function updateMediaPlaybackState(){if("mediaSession" in navigator)try{navigator.mediaSession.playbackState=audio.paused?"paused":"playing"}catch{}}
 audio.addEventListener("play",updateMediaPlaybackState);audio.addEventListener("pause",updateMediaPlaybackState);
-window.addEventListener("pagehide",persistStats);renderRecent();renderLibrary();renderLocalFolder();renderLocalHome();renderHomeDashboard();loadSavedLocalFolder();
+window.addEventListener("pagehide",persistStats);syncPlaybackButton();updateSeekLabel();renderRecent();renderLibrary();renderLocalFolder();renderLocalHome();renderHomeDashboard();loadSavedLocalFolder();
