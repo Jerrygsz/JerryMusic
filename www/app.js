@@ -36,6 +36,14 @@ const state={
 let playRequest=0;
 const save=()=>{localStorage.setItem("jm_favorites",JSON.stringify(state.favorites));localStorage.setItem("jm_playlists",JSON.stringify(state.playlists));localStorage.setItem("jm_recent",JSON.stringify(state.recent))};
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function trackArtworkUrl(track){
+  if(!track?.artworkPath||!NativeCapacitor?.convertFileSrc)return "";
+  try{return NativeCapacitor.convertFileSrc(track.artworkPath)||""}catch{return ""}
+}
+function renderPlayerArtwork(track){
+  const cover=$(".cover-mini"),src=trackArtworkUrl(track);
+  cover.innerHTML=src?'<img src="'+esc(src)+'" alt="" decoding="async">':"♫";
+}
 const toast=s=>{const t=$("#toast");t.textContent=s;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)};
 function hapticFeedback(kind="light"){
   const native=window.JerryHaptics;
@@ -128,7 +136,7 @@ function renderTracks(items,target){
   const selected=state.selectionTarget===target?state.selectedIds:new Set();
   const allSelected=items.length>0&&items.every(t=>selected.has(String(t.id)));
   const toolbar='<div class="bulk-toolbar"><button data-bulk="toggle">'+(state.selectionTarget===target?'退出多选':'多选')+'</button>'+(state.selectionTarget===target?'<button data-bulk="all">'+(allSelected?'取消全选':'全选')+'</button><button data-bulk="fav">批量收藏</button><button data-bulk="playlist">加入歌单</button><button data-bulk="remove">移出列表</button><span>已选 '+selected.size+'</span>':'')+'</div>';
-  el.innerHTML=toolbar+items.map((t,i)=>'<div class="track '+(selected.has(String(t.id))?'is-selected':'')+'" data-row-index="'+i+'"><button class="track-select" data-action="select" data-index="'+i+'" aria-label="选择歌曲">'+(selected.has(String(t.id))?'✓':'')+'</button><div class="track-cover">♫</div><div class="track-info"><strong>'+esc(t.title)+'</strong><small>'+esc(t.artist)+(t.year?" · "+esc(t.year):"")+(t.source==="local"?" · 本地":"")+'</small></div><div class="track-actions"><button data-action="play" data-index="'+i+'" title="播放">▶</button><button data-action="fav" data-index="'+i+'" title="收藏">'+(isFav(t)?"♥":"♡")+'</button><button data-action="add" data-index="'+i+'" title="加入歌单">＋</button></div></div>').join("");
+  el.innerHTML=toolbar+items.map((t,i)=>'<div class="track '+(selected.has(String(t.id))?'is-selected':'')+'" data-row-index="'+i+'"><button class="track-select" data-action="select" data-index="'+i+'" aria-label="选择歌曲">'+(selected.has(String(t.id))?'✓':'')+'</button><div class="track-cover">'+(trackArtworkUrl(t)?'<img src="'+esc(trackArtworkUrl(t))+'" alt="" loading="lazy" decoding="async">':'♫')+'</div><div class="track-info"><strong>'+esc(t.title)+'</strong><small>'+esc(t.artist)+(t.album?" · "+esc(t.album):"")+(t.year?" · "+esc(t.year):"")+(t.source==="local"?" · 本地":"")+'</small></div><div class="track-actions"><button data-action="play" data-index="'+i+'" title="播放">▶</button><button data-action="fav" data-index="'+i+'" title="收藏">'+(isFav(t)?"♥":"♡")+'</button><button data-action="add" data-index="'+i+'" title="加入歌单">＋</button></div></div>').join("");
   el.querySelectorAll("[data-bulk]").forEach(b=>b.onclick=()=>{
     const action=b.dataset.bulk;
     if(action==="toggle"){state.selectionTarget=state.selectionTarget===target?null:target;state.selectedIds=new Set();renderTracks(items,target);return}
@@ -207,7 +215,7 @@ async function loadCurrent(){
   setTrackLoading(true);
   $("#current-time").textContent="0:00";$("#duration").textContent="0:00";seek.value=0;
   loadLyricsForCurrent(t);
-  $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.source==="local"?" · 本地音乐":"");animateTrackChange();updateMediaSession(t);
+  $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.album?" · "+t.album:"")+(t.source==="local"?" · 本地音乐":"");renderPlayerArtwork(t);animateTrackChange();updateMediaSession(t);
   $("#player-fav").textContent=isFav(t)?"♥":"♡";
   state.recent=[t,...state.recent.filter(x=>x.id!==t.id)].slice(0,500);save();renderRecent();currentPlayRecorded=false;lastStatsTick=0;
   try{
@@ -434,7 +442,7 @@ player.addEventListener("touchcancel",()=>{playerGesture=null},{passive:true});
 window.jerryNativeMediaControl=function(action){if(action==="play")audio.play().catch(()=>{});else if(action==="pause")audio.pause();else if(action==="toggle")audio.paused?audio.play().catch(()=>{}):audio.pause();else if(action==="next")next();else if(action==="previous")prev();};
 function updateMediaSession(track){
  if(!("mediaSession" in navigator))return;
- try{navigator.mediaSession.metadata=new MediaMetadata({title:track.title||"JerryMusic",artist:track.artist||"",album:"JerryMusic"})}catch{}
+ try{const artwork=trackArtworkUrl(track);navigator.mediaSession.metadata=new MediaMetadata({title:track.title||"JerryMusic",artist:track.artist||"",album:track.album||"JerryMusic",artwork:artwork?[{src:artwork,sizes:"512x512",type:"image/jpeg"}]:[]})}catch{}
  const actions={play:()=>audio.play().catch(()=>{}),pause:()=>audio.pause(),previoustrack:()=>prev(),nexttrack:()=>next(),seekbackward:()=>{audio.currentTime=Math.max(0,audio.currentTime-10)},seekforward:()=>{audio.currentTime=Math.min(audio.duration||Infinity,audio.currentTime+10)},seekto:d=>{if(Number.isFinite(d.seekTime)&&audio.duration)audio.currentTime=Math.max(0,Math.min(audio.duration,d.seekTime))}};
  for(const [name,fn] of Object.entries(actions)){try{navigator.mediaSession.setActionHandler(name,fn)}catch{}}
 }
