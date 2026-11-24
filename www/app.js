@@ -182,10 +182,22 @@ function addManyToPlaylist(items){
 function isFav(t){return state.favorites.some(x=>x.id===t.id)}
 function toggleFav(t){state.favorites=isFav(t)?state.favorites.filter(x=>x.id!==t.id):[t,...state.favorites];save();renderLibrary();if(state.current?.id===t.id)$("#player-fav").textContent=isFav(t)?"♥":"♡";toast(isFav(t)?"已加入收藏":"已取消收藏")}
 function playFrom(items,i){state.queue=[...items];state.index=i;loadCurrent()}
+function setTrackLoading(loading){
+  player.classList.toggle("is-loading",loading);
+  const button=$("#play-btn");
+  button.classList.toggle("is-loading",loading);
+  button.setAttribute("aria-busy",String(loading));
+  button.disabled=loading;
+  syncPlaybackButton();
+}
 async function loadCurrent(){
   const t=state.queue[state.index];if(!t)return;if(t.source!=="local"||!t.uri){toast("这是旧版本的在线曲目记录；JerryMusic 现在只播放本地音乐");return;}
   if(typeof renderQueue==="function")renderQueue();
-  const request=++playRequest;state.current=t;
+  const request=++playRequest;
+  audio.pause();
+  state.current=t;
+  setTrackLoading(true);
+  $("#current-time").textContent="0:00";$("#duration").textContent="0:00";seek.value=0;
   loadLyricsForCurrent(t);
   $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.source==="local"?" · 本地音乐":"");updateMediaSession(t);
   $("#player-fav").textContent=isFav(t)?"♥":"♡";
@@ -196,19 +208,21 @@ async function loadCurrent(){
     if(request!==playRequest)return;
     const source=NativeCapacitor?.convertFileSrc?NativeCapacitor.convertFileSrc(prepared.path):prepared.path;
     if(request!==playRequest)return;
-    audio.src=source;await audio.play();
-  }catch(e){if(request===playRequest)toast("播放失败："+(e.message||"音源不可用"))}
+    audio.src=source;
+    setTrackLoading(false);
+    await audio.play();
+  }catch(e){if(request===playRequest){setTrackLoading(false);toast("播放失败："+(e.message||"音源不可用"))}}
 }
 function next(){if(state.queue.length){state.index=(state.index+1)%state.queue.length;loadCurrent()}}
 function prev(){if(audio.currentTime>3){audio.currentTime=0;return}if(state.queue.length){state.index=(state.index-1+state.queue.length)%state.queue.length;loadCurrent()}}
 $("#play-btn").onclick=()=>{if(!state.current){toast("先去发现页选择一首歌");return}if(audio.paused)audio.play().catch(()=>toast("无法播放此音源"));else audio.pause()};
 $("#next-btn").onclick=next;$("#prev-btn").onclick=prev;audio.onended=()=>{persistStats();next()};
 function syncPlaybackButton(){
-  const button=$("#play-btn"),playing=!audio.paused;
-  button.textContent=playing?"Ⅱ":"▶";
-  button.setAttribute("aria-label",playing?"暂停":"播放");
+  const button=$("#play-btn"),loading=button.classList.contains("is-loading"),playing=!audio.paused;
+  button.textContent=loading?"…":playing?"Ⅱ":"▶";
+  button.setAttribute("aria-label",loading?"正在加载歌曲":playing?"暂停":"播放");
   button.setAttribute("aria-pressed",String(playing));
-  button.classList.toggle("is-playing",playing);
+  button.classList.toggle("is-playing",playing&&!loading);
 }
 audio.onplay=()=>{syncPlaybackButton();if(!currentPlayRecorded){currentPlayRecorded=true;recordTrackPlay(state.current)}lastStatsTick=audio.currentTime||0};
 audio.onpause=()=>{syncPlaybackButton();lastStatsTick=0;persistStats();lastStatsPersistAt=Date.now()};
