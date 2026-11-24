@@ -37,6 +37,22 @@ let playRequest=0;
 const save=()=>{localStorage.setItem("jm_favorites",JSON.stringify(state.favorites));localStorage.setItem("jm_playlists",JSON.stringify(state.playlists));localStorage.setItem("jm_recent",JSON.stringify(state.recent))};
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const toast=s=>{const t=$("#toast");t.textContent=s;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)};
+function hapticFeedback(kind="light"){
+  const native=window.JerryHaptics;
+  if(native){
+    try{
+      if(kind==="success"&&typeof native.success==="function")native.success();
+      else if(typeof native.tap==="function")native.tap();
+      return;
+    }catch(error){console.debug("[JerryMusic] Haptics unavailable:",error)}
+  }
+  if(typeof navigator!=="undefined"&&typeof navigator.vibrate==="function")navigator.vibrate(kind==="success"?14:8);
+}
+document.addEventListener("click",event=>{
+  const target=event.target instanceof Element?event.target.closest("button,.track,.playlist-card,.queue-track"):null;
+  if(!target||target.disabled||target.dataset.haptic==="none")return;
+  hapticFeedback("light");
+},{passive:true});
 const fmt=n=>{if(!Number.isFinite(n))return"0:00";return Math.floor(n/60)+":"+String(Math.floor(n%60)).padStart(2,"0")};
 const readStoredObject=key=>{try{const value=JSON.parse(localStorage.getItem(key)||"{}");return value&&typeof value==="object"&&!Array.isArray(value)?value:{}}catch{return{}}};
 const PLAY_STATS_KEY="jm_play_stats_v1",PLAY_HISTORY_KEY="jm_play_history_v1",LISTEN_TOTAL_KEY="jm_listen_seconds_v1";
