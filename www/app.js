@@ -329,8 +329,37 @@ function openPlaylist(id){const p=state.playlists.find(x=>x.id===id);if(!p)retur
 
 /* Expandable player and Android Bluetooth/media-key integration */
 const player=$("#player");
-function expandPlayer(){closeLyrics();closeQueue();player.classList.add("expanded");player.setAttribute("aria-expanded","true")}
-function collapsePlayer(){player.classList.remove("expanded");player.setAttribute("aria-expanded","false")}
+let playerTransitionAnimation=null;
+function transitionPlayer(expanded){
+  if(player.classList.contains("expanded")===expanded)return;
+  if(playerTransitionAnimation){playerTransitionAnimation.cancel();playerTransitionAnimation=null}
+  player.style.transform="";
+  player.style.transformOrigin="";
+  const first=player.getBoundingClientRect();
+  player.classList.toggle("expanded",expanded);
+  player.setAttribute("aria-expanded",String(expanded));
+  const last=player.getBoundingClientRect();
+  if(!first.width||!first.height||!last.width||!last.height||typeof player.animate!=="function")return;
+  const dx=first.left-last.left,dy=first.top-last.top;
+  const sx=first.width/last.width,sy=first.height/last.height;
+  const from=`translate(${dx}px,${dy}px) scale(${sx},${sy})`;
+  player.style.transformOrigin="top left";
+  player.style.transform=from;
+  playerTransitionAnimation=player.animate(
+    [{transform:from},{transform:"none"}],
+    {duration:expanded?460:380,easing:"cubic-bezier(.22,.8,.22,1)",fill:"both"}
+  );
+  const animation=playerTransitionAnimation;
+  animation.onfinish=()=>{
+    if(playerTransitionAnimation!==animation)return;
+    player.style.transform="";
+    player.style.transformOrigin="";
+    playerTransitionAnimation=null;
+    animation.cancel();
+  };
+}
+function expandPlayer(){closeLyrics();closeQueue();transitionPlayer(true)}
+function collapsePlayer(){transitionPlayer(false)}
 /* Taps open the mini player; expanded-player gestures are zone-specific. */
 player.addEventListener("click",e=>{
   if(player.classList.contains("expanded")||e.target.closest("button,input,select,a"))return;
