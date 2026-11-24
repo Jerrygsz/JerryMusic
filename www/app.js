@@ -1,4 +1,4 @@
-import { LyricsEngine } from "./lyrics.js";
+import { LyricsEngine, parseLrc } from "./lyrics.js";
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const audio=$("#audio");
 const LocalMusic=window.JerryLocalMusic||null;
@@ -220,6 +220,22 @@ function renderLyrics(result){
   });
   const expanded=$("#expanded-lyrics");if(expanded)expanded.innerHTML=root.innerHTML;
 }
+const manualLyricsKey="jm_manual_lyrics_v1";
+function trackLyricsKey(track){return String(track?.id||track?.uri||track?.fileName||track?.title||"")}
+function readManualLyrics(track){try{const data=JSON.parse(localStorage.getItem(manualLyricsKey)||"{}");return data[trackLyricsKey(track)]||null}catch{return null}}
+function saveManualLyrics(track,result){try{const data=JSON.parse(localStorage.getItem(manualLyricsKey)||"{}");data[trackLyricsKey(track)]=result;localStorage.setItem(manualLyricsKey,JSON.stringify(data))}catch(error){toast("歌词保存失败，存储空间可能不足")}}
+function loadManualLyrics(track,result){renderLyrics(result);setLyricsStatus("手动导入歌词 · 已保存");syncLyrics(audio.currentTime||0,true)}
+$("#lyrics-import-btn").onclick=()=>$("#lyrics-file-input").click();
+$("#lyrics-file-input").addEventListener("change",async event=>{
+ const file=event.target.files?.[0];event.target.value="";if(!file||!state.current)return;
+ try{
+  let text=await file.text();if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
+  const lines=parseLrc(text),timed=lines.length>0,plain=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(s=>({time:null,text:s}));
+  if(!timed&&!plain.length){toast("文件中没有可显示的歌词");return}
+  const result={lines:timed?lines:plain,synced:timed,plainLyrics:text,source:"手动导入",instrumental:false};
+  saveManualLyrics(state.current,result);loadManualLyrics(state.current,result);toast("已加载："+file.name);
+ }catch(error){toast("读取歌词失败："+(error?.message||"未知错误"))}
+});
 async function loadLyricsForCurrent(track){
   const token=++lyricsRequest;
   lyricLines=[];activeLyricIndex=-1;
