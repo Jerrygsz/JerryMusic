@@ -322,3 +322,9 @@ button:focus-visible,.track:focus-visible,.queue-track:focus-visible{
   .player.is-changing-track .cover-mini,
   .player.is-changing-track .track-meta{animation:none!important}
 }
+
+
+/* Local album artwork: preserve the existing cover geometry and crop artwork cleanly. */
+.track-cover{overflow:hidden}
+.track-cover img,.cover-mini img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.cover-mini{overflow:hidden;flex:none}
