@@ -2,7 +2,7 @@
   "name": "jerrymusic",
   "version": "1.0.0",
   "private": true,
-  "description": "JerryMusic online and local music player",
+  "description": "JerryMusic local music player and personal listening archive",
   "scripts": {
     "android:sync": "cap sync android",
     "build:bridge": "esbuild native/local-music-bridge.js --bundle --format=esm --outfile=www/local-music-bridge.js"
