@@ -300,3 +300,25 @@ button:focus-visible,.track:focus-visible,.queue-track:focus-visible{
 @media(prefers-reduced-motion:reduce){
   .player.is-loading .cover-mini{animation:none;opacity:.8}
 }
+
+
+/* Stage 5: coordinated, lightweight metadata transition on track changes. */
+.player.is-changing-track .cover-mini{
+  animation:jm-cover-change .38s cubic-bezier(.2,.8,.2,1) both;
+}
+.player.is-changing-track .track-meta{
+  animation:jm-track-meta-change .32s ease both;
+}
+@keyframes jm-cover-change{
+  0%{opacity:.55;transform:scale(.94) rotate(-5deg)}
+  65%{opacity:1;transform:scale(1.035) rotate(2deg)}
+  100%{opacity:1;transform:scale(1) rotate(0)}
+}
+@keyframes jm-track-meta-change{
+  from{opacity:.35;transform:translateY(5px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@media(prefers-reduced-motion:reduce){
+  .player.is-changing-track .cover-mini,
+  .player.is-changing-track .track-meta{animation:none!important}
+}
