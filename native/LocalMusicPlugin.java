@@ -30,7 +30,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayDeque;
 import java.util.Locale;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 @CapacitorPlugin(name = "LocalMusic")
 public class LocalMusicPlugin extends Plugin {
@@ -177,6 +181,267 @@ public class LocalMusicPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("Could not scan this folder: " + e.getMessage(), e);
         }
+    }
+
+    private static long lastMusicBrainzRequestAt = 0L;
+
+    private static synchronized void waitForMusicBrainzSlot() throws InterruptedException {
+        long wait = 1100L - (System.currentTimeMillis() - lastMusicBrainzRequestAt);
+        if (wait > 0L) Thread.sleep(wait);
+        lastMusicBrainzRequestAt = System.currentTimeMillis();
+    }
+
+    private String readHttpText(String rawUrl, boolean musicBrainz) throws Exception {
+        if (musicBrainz) waitForMusicBrainzSlot();
+        HttpURLConnection connection = (HttpURLConnection) new URL(rawUrl).openConnection();
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(12000);
+        connection.setReadTimeout(15000);
+        connection.setInstanceFollowRedirects(true);
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("User-Agent", "JerryMusic/1.0 (https://github.com/Jerrygsz/JerryMusic)");
+        try {
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) return null;
+            try (InputStream input = connection.getInputStream(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int count, total = 0;
+                while ((count = input.read(buffer)) != -1) {
+                    total += count;
+                    if (total > 4 * 1024 * 1024) throw new IllegalStateException("Music metadata response too large");
+                    output.write(buffer, 0, count);
+                }
+                return output.toString("UTF-8");
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private String downloadCoverArt(String releaseId, String fingerprint) {
+        HttpURLConnection connection = null;
+        try {
+            String endpoint = "https://coverartarchive.org/release/" + releaseId + "/front-500";
+            connection = (HttpURLConnection) new URL(endpoint).openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(12000);
+            connection.setReadTimeout(20000);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "JerryMusic/1.0 (https://github.com/Jerrygsz/JerryMusic)");
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) return "";
+            String contentType = connection.getContentType();
+            if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) return "";
+            byte[] bytes;
+            try (InputStream input = connection.getInputStream(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int count, total = 0;
+                while ((count = input.read(buffer)) != -1) {
+                    total += count;
+                    if (total > 10 * 1024 * 1024) return "";
+                    output.write(buffer, 0, count);
+                }
+                bytes = output.toByteArray();
+            }
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return "";
+            int sample = 1;
+            while (Math.max(bounds.outWidth / sample, bounds.outHeight / sample) > 1000) sample *= 2;
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = sample;
+            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
+            if (bitmap == null) return "";
+            Bitmap scaled = bitmap;
+            int maxSide = Math.max(bitmap.getWidth(), bitmap.getHeight());
+            if (maxSide > 1000) {
+                float ratio = 1000f / maxSide;
+                scaled = Bitmap.createScaledBitmap(bitmap, Math.max(1, Math.round(bitmap.getWidth() * ratio)), Math.max(1, Math.round(bitmap.getHeight() * ratio)), true);
+                if (scaled != bitmap) bitmap.recycle();
+            }
+            File artworkDir = new File(getContext().getFilesDir(), "jerrymusic-artwork");
+            if (!artworkDir.exists() && !artworkDir.mkdirs()) { scaled.recycle(); return ""; }
+            File target = new File(artworkDir, "mb_" + Integer.toHexString(releaseId.hashCode()) + ".jpg");
+            File temporary = new File(artworkDir, target.getName() + ".part");
+            try (FileOutputStream output = new FileOutputStream(temporary)) {
+                if (!scaled.compress(Bitmap.CompressFormat.JPEG, 88, output)) throw new IllegalStateException("Cover compression failed");
+                output.getFD().sync();
+            } finally {
+                scaled.recycle();
+            }
+            if (target.exists()) target.delete();
+            if (!temporary.renameTo(target)) { temporary.delete(); return ""; }
+            return target.getAbsolutePath();
+        } catch (Exception ignored) {
+            return "";
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private String normalizeMusicText(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
+    private String artistCreditName(JSONArray credits) {
+        if (credits == null) return "";
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < credits.length(); i++) {
+            JSONObject credit = credits.optJSONObject(i);
+            if (credit == null) continue;
+            String name = credit.optString("name", "");
+            if (name.isEmpty()) {
+                JSONObject artist = credit.optJSONObject("artist");
+                if (artist != null) name = artist.optString("name", "");
+            }
+            result.append(name).append(credit.optString("joinphrase", ""));
+        }
+        return result.toString().trim();
+    }
+
+    @PluginMethod
+    public void enrichTrack(PluginCall call) {
+        final String rawUri = call.getString("uri", "");
+        final String title = call.getString("title", "").trim();
+        final String artist = call.getString("artist", "").trim();
+        final String album = call.getString("album", "").trim();
+        final String durationRaw = call.getString("durationMs", "");
+        if (rawUri.isEmpty() || title.isEmpty() || artist.isEmpty() || artist.equals("本地音乐")) {
+            call.reject("Missing reliable track title or artist");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                Uri uri = Uri.parse(rawUri);
+                DocumentFile source = DocumentFile.fromSingleUri(getContext(), uri);
+                long size = source == null ? 0L : source.length();
+                long modified = source == null ? 0L : source.lastModified();
+                String fingerprint = Integer.toHexString(rawUri.hashCode()) + "_" + size + "_" + modified;
+                String metadataKey = "meta_v2_" + fingerprint;
+                String attemptKey = "online_attempt_v1_" + fingerprint;
+                android.content.SharedPreferences prefs = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                String cached = prefs.getString(metadataKey, "{}");
+                JSONObject metadata = new JSONObject(cached);
+                String existingArtwork = metadata.optString("artworkPath", "");
+                if (!existingArtwork.isEmpty() && new File(existingArtwork).isFile()) {
+                    JSObject already = new JSObject();
+                    already.put("updated", false);
+                    already.put("reason", "already_has_artwork");
+                    call.resolve(already);
+                    return;
+                }
+                long attemptedAt = prefs.getLong(attemptKey, 0L);
+                if (attemptedAt > 0L && System.currentTimeMillis() - attemptedAt < 30L * 24L * 60L * 60L * 1000L) {
+                    JSObject skipped = new JSObject();
+                    skipped.put("updated", false);
+                    skipped.put("reason", "recently_checked");
+                    call.resolve(skipped);
+                    return;
+                }
+
+                String query = "recording:\"" + title.replace("\"", "") + "\" AND artist:\"" + artist.replace("\"", "") + "\"";
+                String searchUrl = "https://musicbrainz.org/ws/2/recording/?query=" + URLEncoder.encode(query, "UTF-8") + "&fmt=json&limit=5";
+                String searchText = readHttpText(searchUrl, true);
+                if (searchText == null) throw new IllegalStateException("MusicBrainz search unavailable");
+                JSONObject searchJson = new JSONObject(searchText);
+                JSONArray recordings = searchJson.optJSONArray("recordings");
+                JSONObject chosen = null;
+                String normalizedTitle = normalizeMusicText(title);
+                String normalizedArtist = normalizeMusicText(artist);
+                long localDuration = 0L;
+                try { localDuration = Long.parseLong(durationRaw); } catch (Exception ignored) {}
+                if (recordings != null) {
+                    for (int i = 0; i < recordings.length(); i++) {
+                        JSONObject candidate = recordings.optJSONObject(i);
+                        if (candidate == null || candidate.optInt("score", 0) < 95) continue;
+                        if (!normalizeMusicText(candidate.optString("title", "")).equals(normalizedTitle)) continue;
+                        String candidateArtist = normalizeMusicText(artistCreditName(candidate.optJSONArray("artist-credit")));
+                        if (candidateArtist.isEmpty() || (!candidateArtist.contains(normalizedArtist) && !normalizedArtist.contains(candidateArtist))) continue;
+                        long candidateDuration = candidate.optLong("length", 0L);
+                        if (localDuration > 0L && candidateDuration > 0L) {
+                            long difference = Math.abs(localDuration - candidateDuration);
+                            if (difference > Math.max(12000L, localDuration / 12L)) continue;
+                        }
+                        chosen = candidate;
+                        break;
+                    }
+                }
+                if (chosen == null) {
+                    prefs.edit().putLong(attemptKey, System.currentTimeMillis()).apply();
+                    JSObject noMatch = new JSObject();
+                    noMatch.put("updated", false);
+                    noMatch.put("reason", "no_confident_match");
+                    call.resolve(noMatch);
+                    return;
+                }
+
+                String recordingId = chosen.optString("id", "");
+                String detailUrl = "https://musicbrainz.org/ws/2/recording/" + recordingId + "?inc=releases+artist-credits+tags&fmt=json";
+                String detailText = readHttpText(detailUrl, true);
+                if (detailText == null) throw new IllegalStateException("MusicBrainz detail unavailable");
+                JSONObject detail = new JSONObject(detailText);
+                JSONArray releases = detail.optJSONArray("releases");
+                JSONObject selectedRelease = null;
+                String normalizedAlbum = normalizeMusicText(album);
+                if (releases != null) {
+                    for (int i = 0; i < releases.length(); i++) {
+                        JSONObject release = releases.optJSONObject(i);
+                        if (release == null) continue;
+                        String status = release.optString("status", "");
+                        if (!status.isEmpty() && !status.equalsIgnoreCase("official")) continue;
+                        String releaseTitle = release.optString("title", "");
+                        if (!normalizedAlbum.isEmpty() && !normalizeMusicText(releaseTitle).equals(normalizedAlbum)) continue;
+                        if (selectedRelease == null) selectedRelease = release;
+                        if (!normalizedAlbum.isEmpty()) { selectedRelease = release; break; }
+                    }
+                }
+                if (selectedRelease == null) {
+                    prefs.edit().putLong(attemptKey, System.currentTimeMillis()).apply();
+                    JSObject noRelease = new JSObject();
+                    noRelease.put("updated", false);
+                    noRelease.put("reason", "no_matching_release");
+                    call.resolve(noRelease);
+                    return;
+                }
+
+                String releaseId = selectedRelease.optString("id", "");
+                if (releaseId.isEmpty()) throw new IllegalStateException("Missing MusicBrainz release id");
+                String remoteAlbum = selectedRelease.optString("title", "");
+                String remoteAlbumArtist = artistCreditName(selectedRelease.optJSONArray("artist-credit"));
+                String remoteDate = selectedRelease.optString("date", "");
+                String remoteYear = remoteDate.length() >= 4 ? remoteDate.substring(0, 4) : "";
+                String remoteGenre = "";
+                JSONArray tags = detail.optJSONArray("tags");
+                if (tags != null && tags.length() > 0) {
+                    JSONObject bestTag = tags.optJSONObject(0);
+                    if (bestTag != null) remoteGenre = bestTag.optString("name", "");
+                }
+                String artworkPath = downloadCoverArt(releaseId, fingerprint);
+
+                if (metadata.optString("album", "").trim().isEmpty() && !remoteAlbum.isEmpty()) metadata.put("album", remoteAlbum);
+                if (metadata.optString("albumArtist", "").trim().isEmpty() && !remoteAlbumArtist.isEmpty()) metadata.put("albumArtist", remoteAlbumArtist);
+                if (metadata.optString("year", "").trim().isEmpty() && !remoteYear.isEmpty()) metadata.put("year", remoteYear);
+                if (metadata.optString("genre", "").trim().isEmpty() && !remoteGenre.isEmpty()) metadata.put("genre", remoteGenre);
+                if (metadata.optString("artworkPath", "").trim().isEmpty() && !artworkPath.isEmpty()) metadata.put("artworkPath", artworkPath);
+                metadata.put("musicBrainzRecordingId", recordingId);
+                metadata.put("musicBrainzReleaseId", releaseId);
+                prefs.edit().putString(metadataKey, metadata.toString()).putLong(attemptKey, System.currentTimeMillis()).apply();
+
+                JSObject response = new JSObject();
+                response.put("updated", !artworkPath.isEmpty() || !remoteAlbum.isEmpty() || !remoteYear.isEmpty() || !remoteGenre.isEmpty());
+                response.put("album", remoteAlbum);
+                response.put("albumArtist", remoteAlbumArtist);
+                response.put("year", remoteYear);
+                response.put("genre", remoteGenre);
+                if (!artworkPath.isEmpty()) response.put("artworkPath", artworkPath);
+                response.put("musicBrainzRecordingId", recordingId);
+                response.put("musicBrainzReleaseId", releaseId);
+                call.resolve(response);
+            } catch (Exception e) {
+                call.reject("Online music matching failed: " + e.getMessage(), e);
+            }
+        }, "JerryMusicMetadata").start();
     }
 
     @PluginMethod
