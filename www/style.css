@@ -265,3 +265,21 @@ button:focus-visible,.track:focus-visible,.queue-track:focus-visible{
 @media(prefers-reduced-motion:reduce){
   .player{will-change:auto}
 }
+
+
+/* Stage 3: clearer playback state and precise seek interaction feedback. */
+.controls .play-btn.is-playing{
+  box-shadow:0 0 0 5px #d5f36a18;
+}
+.progress-wrap input[type="range"]{
+  cursor:pointer;
+  touch-action:pan-y;
+  transition:height .14s ease,filter .14s ease;
+}
+.progress-wrap.is-seeking{
+  color:var(--lime);
+}
+.progress-wrap.is-seeking input[type="range"]{
+  height:5px;
+  filter:brightness(1.2);
+}
