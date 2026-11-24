@@ -41,7 +41,7 @@ const fmt=n=>{if(!Number.isFinite(n))return"0:00";return Math.floor(n/60)+":"+St
 const readStoredObject=key=>{try{const value=JSON.parse(localStorage.getItem(key)||"{}");return value&&typeof value==="object"&&!Array.isArray(value)?value:{}}catch{return{}}};
 const PLAY_STATS_KEY="jm_play_stats_v1",PLAY_HISTORY_KEY="jm_play_history_v1",LISTEN_TOTAL_KEY="jm_listen_seconds_v1";
 let playStats=readStoredObject(PLAY_STATS_KEY),playHistory=readStoredArray(PLAY_HISTORY_KEY),totalListenSeconds=Number(localStorage.getItem(LISTEN_TOTAL_KEY)||0)||0;
-let currentPlayRecorded=false,lastStatsTick=0;
+let currentPlayRecorded=false,lastStatsTick=0,lastStatsPersistAt=0;
 function statsKey(track){return String(track?.id||track?.uri||track?.fileName||track?.title||"")}
 function persistStats(){try{localStorage.setItem(PLAY_STATS_KEY,JSON.stringify(playStats));localStorage.setItem(PLAY_HISTORY_KEY,JSON.stringify(playHistory.slice(0,2000)));localStorage.setItem(LISTEN_TOTAL_KEY,String(Math.floor(totalListenSeconds)))}catch(error){console.warn("[JerryMusic] Could not persist listening statistics:",error)}}
 function recordTrackPlay(track){if(!track)return;const key=statsKey(track),now=Date.now(),entry=playStats[key]||{track:{id:track.id,uri:track.uri,fileName:track.fileName,title:track.title,artist:track.artist,source:"local"},playCount:0,listenedSeconds:0,firstPlayedAt:now,lastPlayedAt:0};entry.track={...entry.track,...track,source:"local"};entry.playCount=(entry.playCount||0)+1;entry.lastPlayedAt=now;if(!entry.firstPlayedAt)entry.firstPlayedAt=now;playStats[key]=entry;playHistory.unshift({key,title:track.title||"未知歌曲",artist:track.artist||"",playedAt:now});if(playHistory.length>2000)playHistory.length=2000;persistStats();renderHomeDashboard()}
@@ -186,9 +186,9 @@ async function loadCurrent(){
 function next(){if(state.queue.length){state.index=(state.index+1)%state.queue.length;loadCurrent()}}
 function prev(){if(audio.currentTime>3){audio.currentTime=0;return}if(state.queue.length){state.index=(state.index-1+state.queue.length)%state.queue.length;loadCurrent()}}
 $("#play-btn").onclick=()=>{if(!state.current){toast("先去发现页选择一首歌");return}if(audio.paused)audio.play().catch(()=>toast("无法播放此音源"));else audio.pause()};
-$("#next-btn").onclick=next;$("#prev-btn").onclick=prev;audio.onended=next;
-audio.onplay=()=>{$("#play-btn").textContent="Ⅱ";if(!currentPlayRecorded){currentPlayRecorded=true;recordTrackPlay(state.current)}lastStatsTick=audio.currentTime||0};audio.onpause=()=>{$("#play-btn").textContent="▶";lastStatsTick=0};
-audio.ontimeupdate=()=>{if(audio.duration){$("#seek").value=audio.currentTime/audio.duration*1000;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration)}if(!audio.paused&&state.current){const now=audio.currentTime||0,delta=now-lastStatsTick;if(delta>0&&delta<=5){totalListenSeconds+=delta;const entry=playStats[statsKey(state.current)];if(entry)entry.listenedSeconds=(entry.listenedSeconds||0)+delta;persistStats()}lastStatsTick=now}syncLyrics(audio.currentTime)};
+$("#next-btn").onclick=next;$("#prev-btn").onclick=prev;audio.onended=()=>{persistStats();next()};
+audio.onplay=()=>{$("#play-btn").textContent="Ⅱ";if(!currentPlayRecorded){currentPlayRecorded=true;recordTrackPlay(state.current)}lastStatsTick=audio.currentTime||0};audio.onpause=()=>{$("#play-btn").textContent="▶";lastStatsTick=0;persistStats();lastStatsPersistAt=Date.now()};
+audio.ontimeupdate=()=>{if(audio.duration){$("#seek").value=audio.currentTime/audio.duration*1000;$("#current-time").textContent=fmt(audio.currentTime);$("#duration").textContent=fmt(audio.duration)}if(!audio.paused&&state.current){const now=audio.currentTime||0,delta=now-lastStatsTick;if(delta>0&&delta<=5){totalListenSeconds+=delta;const entry=playStats[statsKey(state.current)];if(entry)entry.listenedSeconds=(entry.listenedSeconds||0)+delta;if(Date.now()-lastStatsPersistAt>=10000){persistStats();lastStatsPersistAt=Date.now()}}lastStatsTick=now}syncLyrics(audio.currentTime)};
 $("#seek").oninput=()=>{if(audio.duration)audio.currentTime=audio.duration*(+$("#seek").value/1000)};
 $("#player-fav").onclick=()=>state.current&&toggleFav(state.current);
 function setLyricsStatus(message){$("#lyrics-status").textContent=message}
@@ -357,4 +357,4 @@ function updateMediaSession(track){
 }
 function updateMediaPlaybackState(){if("mediaSession" in navigator)try{navigator.mediaSession.playbackState=audio.paused?"paused":"playing"}catch{}}
 audio.addEventListener("play",updateMediaPlaybackState);audio.addEventListener("pause",updateMediaPlaybackState);
-renderRecent();renderLibrary();renderLocalFolder();renderLocalHome();renderHomeDashboard();loadSavedLocalFolder();
+window.addEventListener("pagehide",persistStats);renderRecent();renderLibrary();renderLocalFolder();renderLocalHome();renderHomeDashboard();loadSavedLocalFolder();
