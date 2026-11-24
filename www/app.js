@@ -182,6 +182,14 @@ function addManyToPlaylist(items){
 function isFav(t){return state.favorites.some(x=>x.id===t.id)}
 function toggleFav(t){state.favorites=isFav(t)?state.favorites.filter(x=>x.id!==t.id):[t,...state.favorites];save();renderLibrary();if(state.current?.id===t.id)$("#player-fav").textContent=isFav(t)?"♥":"♡";toast(isFav(t)?"已加入收藏":"已取消收藏")}
 function playFrom(items,i){state.queue=[...items];state.index=i;loadCurrent()}
+let trackChangeTimer=null;
+function animateTrackChange(){
+  clearTimeout(trackChangeTimer);
+  player.classList.remove("is-changing-track");
+  void player.offsetWidth;
+  player.classList.add("is-changing-track");
+  trackChangeTimer=setTimeout(()=>player.classList.remove("is-changing-track"),460);
+}
 function setTrackLoading(loading){
   player.classList.toggle("is-loading",loading);
   const button=$("#play-btn");
@@ -199,7 +207,7 @@ async function loadCurrent(){
   setTrackLoading(true);
   $("#current-time").textContent="0:00";$("#duration").textContent="0:00";seek.value=0;
   loadLyricsForCurrent(t);
-  $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.source==="local"?" · 本地音乐":"");updateMediaSession(t);
+  $("#now-title").textContent=t.title;$("#now-artist").textContent=t.artist+(t.source==="local"?" · 本地音乐":"");animateTrackChange();updateMediaSession(t);
   $("#player-fav").textContent=isFav(t)?"♥":"♡";
   state.recent=[t,...state.recent.filter(x=>x.id!==t.id)].slice(0,500);save();renderRecent();currentPlayRecorded=false;lastStatsTick=0;
   try{
