@@ -332,14 +332,39 @@ function openPlaylist(id){const p=state.playlists.find(x=>x.id===id);if(!p)retur
 const player=$("#player");
 function expandPlayer(){closeLyrics();closeQueue();player.classList.add("expanded");player.setAttribute("aria-expanded","true")}
 function collapsePlayer(){player.classList.remove("expanded");player.setAttribute("aria-expanded","false")}
-/* Only non-control surfaces of the mini player open the full-screen player. */
+/* Taps open the mini player; expanded-player gestures are zone-specific. */
 player.addEventListener("click",e=>{
-  if(e.target.closest("button,input,select,a"))return;
+  if(player.classList.contains("expanded")||e.target.closest("button,input,select,a"))return;
   expandPlayer();
 });
-let playerGestureY=0;
-player.addEventListener("touchstart",e=>{playerGestureY=e.touches[0].clientY},{passive:true});
-player.addEventListener("touchend",e=>{const delta=e.changedTouches[0].clientY-playerGestureY;if(delta<-60)expandPlayer();else if(delta>80)collapsePlayer()},{passive:true});
+let playerGesture=null;
+player.addEventListener("touchstart",e=>{
+  const touch=e.touches[0];
+  const expanded=player.classList.contains("expanded");
+  const target=e.target;
+  const interactive=target.closest("button,input,select,a,[role='button']");
+  const zone=expanded
+    ? (target.closest(".player-meta")?"meta":target.closest(".expanded-lyrics")?"lyrics":null)
+    : (!interactive&&target.closest("#player")?"mini":null);
+  playerGesture=zone?{y:touch.clientY,x:touch.clientX,zone,expanded}:null;
+},{passive:true});
+player.addEventListener("touchend",e=>{
+  if(!playerGesture)return;
+  const start=playerGesture;playerGesture=null;
+  const touch=e.changedTouches[0];
+  const deltaY=touch.clientY-start.y;
+  const deltaX=touch.clientX-start.x;
+  if(Math.abs(deltaY)<65||Math.abs(deltaY)<Math.abs(deltaX)*1.2)return;
+  if(start.expanded){
+    /* Only a downward swipe that starts in the left metadata column collapses. */
+    if(start.zone==="meta"&&deltaY>80)collapsePlayer();
+    /* The lyrics column is reserved for native vertical scrolling. */
+    return;
+  }
+  /* Keep the existing swipe-up-to-expand gesture on the compact player. */
+  if(start.zone==="mini"&&deltaY<-60)expandPlayer();
+},{passive:true});
+player.addEventListener("touchcancel",()=>{playerGesture=null},{passive:true});
 window.jerryNativeMediaControl=function(action){if(action==="play")audio.play().catch(()=>{});else if(action==="pause")audio.pause();else if(action==="toggle")audio.paused?audio.play().catch(()=>{}):audio.pause();else if(action==="next")next();else if(action==="previous")prev();};
 function updateMediaSession(track){
  if(!("mediaSession" in navigator))return;
