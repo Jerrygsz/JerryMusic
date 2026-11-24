@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.media.MediaMetadataRetriever;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 
@@ -144,6 +146,13 @@ public class LocalMusicPlugin extends Plugin {
                             item.put("artist", metadata[1]);
                             item.put("fileName", name);
                             item.put("durationMs", metadata[2]);
+                            item.put("album", metadata[3]);
+                            item.put("albumArtist", metadata[4]);
+                            item.put("year", metadata[5]);
+                            item.put("genre", metadata[6]);
+                            item.put("trackNumber", metadata[7]);
+                            item.put("discNumber", metadata[8]);
+                            if (!metadata[9].isEmpty()) item.put("artworkPath", metadata[9]);
                             item.put("source", "local");
                             item.put("size", child.length());
                             String audioName = name;
@@ -209,24 +218,88 @@ public class LocalMusicPlugin extends Plugin {
         String uri = file.getUri().toString();
         long size = file.length();
         long modified = file.lastModified();
-        String key = "meta_" + Integer.toHexString(uri.hashCode()) + "_" + size + "_" + modified;
+        String fingerprint = Integer.toHexString(uri.hashCode()) + "_" + size + "_" + modified;
+        String key = "meta_" + fingerprint;
         android.content.SharedPreferences prefs = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String cached = prefs.getString(key, null);
         if (cached != null) {
             try {
                 JSONObject json = new JSONObject(cached);
-                return new String[]{json.optString("title", fallbackName), json.optString("artist", "本地音乐"), json.optString("duration", "")};
+                String artworkPath = json.optString("artworkPath", "");
+                if (!artworkPath.isEmpty() && !new File(artworkPath).isFile()) artworkPath = "";
+                return new String[]{
+                    json.optString("title", fallbackName),
+                    json.optString("artist", "本地音乐"),
+                    json.optString("duration", ""),
+                    json.optString("album", ""),
+                    json.optString("albumArtist", ""),
+                    json.optString("year", ""),
+                    json.optString("genre", ""),
+                    json.optString("trackNumber", ""),
+                    json.optString("discNumber", ""),
+                    artworkPath
+                };
             } catch (Exception ignored) {}
         }
-        String[] metadata = readMetadata(file.getUri(), fallbackName);
+        String[] metadata = readMetadata(file.getUri(), fallbackName, fingerprint);
         try {
             JSONObject json = new JSONObject();
             json.put("title", metadata[0]);
             json.put("artist", metadata[1]);
             json.put("duration", metadata[2]);
+            json.put("album", metadata[3]);
+            json.put("albumArtist", metadata[4]);
+            json.put("year", metadata[5]);
+            json.put("genre", metadata[6]);
+            json.put("trackNumber", metadata[7]);
+            json.put("discNumber", metadata[8]);
+            json.put("artworkPath", metadata[9]);
             prefs.edit().putString(key, json.toString()).apply();
         } catch (Exception ignored) {}
         return metadata;
+    }
+
+    private String cacheEmbeddedArtwork(MediaMetadataRetriever retriever, String fingerprint) {
+        try {
+            File artworkDir = new File(getContext().getFilesDir(), "jerrymusic-artwork");
+            if (!artworkDir.exists() && !artworkDir.mkdirs()) return "";
+            File target = new File(artworkDir, fingerprint + ".jpg");
+            if (target.isFile() && target.length() > 0) return target.getAbsolutePath();
+            byte[] embedded = retriever.getEmbeddedPicture();
+            if (embedded == null || embedded.length == 0 || embedded.length > 12 * 1024 * 1024) return "";
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(embedded, 0, embedded.length, bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return "";
+            int sample = 1;
+            while (Math.max(bounds.outWidth / sample, bounds.outHeight / sample) > 1000) sample *= 2;
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = sample;
+            Bitmap bitmap = BitmapFactory.decodeByteArray(embedded, 0, embedded.length, options);
+            if (bitmap == null) return "";
+            Bitmap scaled = bitmap;
+            int maxSide = Math.max(bitmap.getWidth(), bitmap.getHeight());
+            if (maxSide > 1000) {
+                float ratio = 1000f / maxSide;
+                scaled = Bitmap.createScaledBitmap(bitmap, Math.max(1, Math.round(bitmap.getWidth() * ratio)), Math.max(1, Math.round(bitmap.getHeight() * ratio)), true);
+                if (scaled != bitmap) bitmap.recycle();
+            }
+            File temporary = new File(artworkDir, fingerprint + ".part");
+            try (FileOutputStream output = new FileOutputStream(temporary)) {
+                if (!scaled.compress(Bitmap.CompressFormat.JPEG, 88, output)) throw new IllegalStateException("Artwork compression failed");
+                output.getFD().sync();
+            } finally {
+                scaled.recycle();
+            }
+            if (target.exists()) target.delete();
+            if (!temporary.renameTo(target)) {
+                temporary.delete();
+                return "";
+            }
+            return target.getAbsolutePath();
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     @PluginMethod
@@ -305,25 +378,39 @@ public class LocalMusicPlugin extends Plugin {
         return mime.startsWith("audio/") || name.matches("(?i).+\\.(mp3|m4a|aac|flac|wav|ogg|opus|wma|aiff?)$");
     }
 
-    private String[] readMetadata(Uri uri, String fallbackName) {
+    private String[] readMetadata(Uri uri, String fallbackName, String fingerprint) {
         String title = fallbackName.contains(".") ? fallbackName.substring(0, fallbackName.lastIndexOf('.')) : fallbackName;
         String artist = "本地音乐";
         String duration = "";
+        String album = "", albumArtist = "", year = "", genre = "", trackNumber = "", discNumber = "", artworkPath = "";
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         try {
             retriever.setDataSource(getContext(), uri);
             String value = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
-            if (value != null && !value.trim().isEmpty()) title = value;
+            if (value != null && !value.trim().isEmpty()) title = value.trim();
             value = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
-            if (value != null && !value.trim().isEmpty()) artist = value;
+            if (value != null && !value.trim().isEmpty()) artist = value.trim();
             duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
             if (duration == null) duration = "";
+            value = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
+            if (value != null) album = value.trim();
+            value = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST);
+            if (value != null) albumArtist = value.trim();
+            value = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR);
+            if (value != null) year = value.trim();
+            value = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE);
+            if (value != null) genre = value.trim();
+            value = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER);
+            if (value != null) trackNumber = value.trim();
+            value = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER);
+            if (value != null) discNumber = value.trim();
+            artworkPath = cacheEmbeddedArtwork(retriever, fingerprint);
         } catch (Exception ignored) {
             // Fall back to the filename when embedded tags are unavailable.
         } finally {
             try { retriever.release(); } catch (Exception ignored) {}
         }
-        return new String[]{title, artist, duration};
+        return new String[]{title, artist, duration, album, albumArtist, year, genre, trackNumber, discNumber, artworkPath};
     }
 
     private String queryDisplayName(Uri uri) {
