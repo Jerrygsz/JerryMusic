@@ -53,3 +53,8 @@ GitHub Actions 会在向 main 或 feature/android-apk 推送代码、向 main �
 - 本地播放会先把所选歌曲复制到应用私有缓存，再交给 WebView 播放；首次播放较大的文件会有准备时间。
 - 后台持续播放和锁屏媒体控制尚未通过真机验证；当前版本不承诺完整的原生后台媒体服务体验。
 - HarmonyOS 4.2 的系统文件夹选择器行为与实际音频格式兼容性，仍需在 Mate 60 Pro 真机验证。
+
+
+## Product direction
+
+JerryMusic is a local-first Android music player. Online music discovery and streaming have been removed; network access is retained for lyric lookup only when local lyrics are unavailable. Listening history and play statistics are stored locally on the device.
