@@ -152,6 +152,7 @@ async function enrichMissingTracks(items,sequence){
   for(const track of items){
     if(newLookups>=5)break;
     if(!track?.uri||!track.title||!track.artist||track.artist==="本地音乐")continue;
+    if(track.artworkPath&&track.album&&track.albumArtist&&track.year&&track.genre)continue;
     if(onlineEnrichmentInFlight.has(track.id))continue;
     onlineEnrichmentInFlight.add(track.id);
     try{
