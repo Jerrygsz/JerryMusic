@@ -219,7 +219,7 @@ public class LocalMusicPlugin extends Plugin {
         long size = file.length();
         long modified = file.lastModified();
         String fingerprint = Integer.toHexString(uri.hashCode()) + "_" + size + "_" + modified;
-        String key = "meta_" + fingerprint;
+        String key = "meta_v2_" + fingerprint;
         android.content.SharedPreferences prefs = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String cached = prefs.getString(key, null);
         if (cached != null) {
