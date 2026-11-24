@@ -324,10 +324,15 @@ public class LocalMusicPlugin extends Plugin {
                 String cached = prefs.getString(metadataKey, "{}");
                 JSONObject metadata = new JSONObject(cached);
                 String existingArtwork = metadata.optString("artworkPath", "");
-                if (!existingArtwork.isEmpty() && new File(existingArtwork).isFile()) {
+                boolean hasArtwork = !existingArtwork.isEmpty() && new File(existingArtwork).isFile();
+                boolean missingTags = metadata.optString("album", "").trim().isEmpty()
+                    || metadata.optString("albumArtist", "").trim().isEmpty()
+                    || metadata.optString("year", "").trim().isEmpty()
+                    || metadata.optString("genre", "").trim().isEmpty();
+                if (hasArtwork && !missingTags) {
                     JSObject already = new JSObject();
                     already.put("updated", false);
-                    already.put("reason", "already_has_artwork");
+                    already.put("reason", "already_complete");
                     call.resolve(already);
                     return;
                 }
@@ -417,7 +422,7 @@ public class LocalMusicPlugin extends Plugin {
                     JSONObject bestTag = tags.optJSONObject(0);
                     if (bestTag != null) remoteGenre = bestTag.optString("name", "");
                 }
-                String artworkPath = downloadCoverArt(releaseId, fingerprint);
+                String artworkPath = hasArtwork ? "" : downloadCoverArt(releaseId, fingerprint);
 
                 if (metadata.optString("album", "").trim().isEmpty() && !remoteAlbum.isEmpty()) metadata.put("album", remoteAlbum);
                 if (metadata.optString("albumArtist", "").trim().isEmpty() && !remoteAlbumArtist.isEmpty()) metadata.put("albumArtist", remoteAlbumArtist);
