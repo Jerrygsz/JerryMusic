@@ -46,7 +46,22 @@ function statsKey(track){return String(track?.id||track?.uri||track?.fileName||t
 function persistStats(){try{localStorage.setItem(PLAY_STATS_KEY,JSON.stringify(playStats));localStorage.setItem(PLAY_HISTORY_KEY,JSON.stringify(playHistory.slice(0,2000)));localStorage.setItem(LISTEN_TOTAL_KEY,String(Math.floor(totalListenSeconds)))}catch(error){console.warn("[JerryMusic] Could not persist listening statistics:",error)}}
 function recordTrackPlay(track){if(!track)return;const key=statsKey(track),now=Date.now(),entry=playStats[key]||{track:{id:track.id,uri:track.uri,fileName:track.fileName,title:track.title,artist:track.artist,source:"local"},playCount:0,listenedSeconds:0,firstPlayedAt:now,lastPlayedAt:0};entry.track={...entry.track,...track,source:"local"};entry.playCount=(entry.playCount||0)+1;entry.lastPlayedAt=now;if(!entry.firstPlayedAt)entry.firstPlayedAt=now;playStats[key]=entry;playHistory.unshift({key,title:track.title||"未知歌曲",artist:track.artist||"",playedAt:now});if(playHistory.length>2000)playHistory.length=2000;persistStats();renderHomeDashboard()}
 function formatListeningTime(seconds){const total=Math.max(0,Math.floor(seconds||0)),hours=Math.floor(total/3600),minutes=Math.floor(total%3600/60);return hours?hours+"小时"+minutes+"分":minutes+"分钟"}
-function renderHomeDashboard(){const stats=Object.values(playStats),count=stats.reduce((sum,item)=>sum+(item.playCount||0),0),unique=stats.length;const set=(id,value)=>{const node=$("#"+id);if(node)node.textContent=value};set("home-track-count",state.homeLocalTracks.length||"—");set("home-play-count",count);set("home-listen-time",formatListeningTime(totalListenSeconds));set("home-unique-count",unique);const ranked=stats.filter(item=>item.track?.title).sort((a,b)=>(b.playCount||0)-(a.playCount||0)).slice(0,10).map(item=>({...item.track,source:"local"}));const root=$("#top-played-list");if(root){if(ranked.length)renderTracks(ranked,"top-played-list");else root.innerHTML='<div class="empty-note">开始播放本地音乐，这里会慢慢形成你的私人排行榜。</div>'}}
+function renderHomeDashboard(){
+  const stats=Object.values(playStats),count=stats.reduce((sum,item)=>sum+(item.playCount||0),0),unique=stats.length;
+  const set=(id,value)=>{const node=$("#"+id);if(node)node.textContent=value};
+  set("home-track-count",state.homeLocalTracks.length);
+  set("home-play-count",count);
+  set("home-listen-time",formatListeningTime(totalListenSeconds));
+  set("home-unique-count",unique);
+  const rankedAll=stats.filter(item=>item.track?.title).sort((a,b)=>(b.playCount||0)-(a.playCount||0)).slice(0,10).map(item=>({...item.track,source:"local"}));
+  const now=Date.now(),weekCounts={},monthCounts={};
+  for(const event of playHistory){if(!event?.key||!event.playedAt)continue;const age=now-event.playedAt;if(age<=7*86400000)weekCounts[event.key]=(weekCounts[event.key]||0)+1;if(age<=30*86400000)monthCounts[event.key]=(monthCounts[event.key]||0)+1}
+  const buildRank=counts=>Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([key])=>playStats[key]?.track).filter(Boolean).map(track=>({...track,source:"local"}));
+  const renderRank=(id,tracks,empty)=>{const root=$("#"+id);if(!root)return;if(tracks.length)renderTracks(tracks,id);else root.innerHTML='<div class="empty-note">'+empty+'</div>'};
+  renderRank("top-played-list",rankedAll,"开始播放本地音乐，这里会慢慢形成你的私人排行榜。");
+  renderRank("top-played-week-list",buildRank(weekCounts),"最近 7 天还没有足够的播放记录。");
+  renderRank("top-played-month-list",buildRank(monthCounts),"最近 30 天还没有足够的播放记录。");
+}
 function switchTab(tab){$(".view").forEach(v=>v.classList.toggle("active",v.id===tab+"-view"));$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));if(tab==="library")renderLibrary();if(tab==="home"){renderRecent();renderLocalHome();renderHomeDashboard()}}
 $$(".nav-item").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 $$("[data-tab]").filter(b=>!b.classList.contains("nav-item")).forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
