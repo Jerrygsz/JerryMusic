@@ -293,7 +293,7 @@ let lyricTouchStartY=0;
 const lyricsPanel=$("#lyrics-panel");
 lyricsPanel.addEventListener("touchstart",e=>{lyricTouchStartY=e.touches[0].clientY},{passive:true});
 lyricsPanel.addEventListener("touchend",e=>{if(e.changedTouches[0].clientY-lyricTouchStartY>85)closeLyrics()},{passive:true});
-document.addEventListener("pointerdown",e=>{if(lyricsPanel.classList.contains("show")&&!lyricsPanel.contains(e.target)&&!$("#lyrics-btn").contains(e.target)&&!player.contains(e.target))closeLyrics()});
+document.addEventListener("pointerdown",e=>{if(lyricsPanel.classList.contains("show")&&!lyricsPanel.contains(e.target)&&!$("#lyrics-btn").contains(e.target))closeLyrics()});
 function renderQueue(){
   $("#queue-count").textContent=state.queue.length+" 首";
   const root=$("#queue-items");
