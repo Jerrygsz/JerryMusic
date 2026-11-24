@@ -62,7 +62,7 @@ function renderHomeDashboard(){
   renderRank("top-played-week-list",buildRank(weekCounts),"最近 7 天还没有足够的播放记录。");
   renderRank("top-played-month-list",buildRank(monthCounts),"最近 30 天还没有足够的播放记录。");
 }
-function switchTab(tab){$(".view").forEach(v=>v.classList.toggle("active",v.id===tab+"-view"));$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));if(tab==="library")renderLibrary();if(tab==="home"){renderRecent();renderLocalHome();renderHomeDashboard()}}
+function switchTab(tab){$$(".view").forEach(v=>v.classList.toggle("active",v.id===tab+"-view"));$$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));if(tab==="library")renderLibrary();if(tab==="home"){renderRecent();renderLocalHome();renderHomeDashboard()}}
 $$(".nav-item").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 $$("[data-tab]").filter(b=>!b.classList.contains("nav-item")).forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 $("#search-focus").onclick=()=>{switchTab("search");$("#local-search-input").focus()};
