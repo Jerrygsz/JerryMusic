@@ -320,9 +320,9 @@ function renderLibrary(){
   root.innerHTML='<div class="create-row"><input id="playlist-name" maxlength="24" placeholder="给新歌单起个名字"><button id="create-playlist">创建歌单</button></div><div id="playlist-items"></div>';
   $("#create-playlist").onclick=()=>{const name=$("#playlist-name").value.trim();if(!name){toast("先给歌单起个名字");return}state.playlists.push({id:Date.now().toString(),name,tracks:[]});save();renderLibrary();toast("歌单已创建")};
   const list=$("#playlist-items");if(!state.playlists.length){list.innerHTML='<div class="empty-note">还没有歌单，创建一个自己的音乐角落</div>';return}
-  list.innerHTML=state.playlists.map(p=>'<div class="playlist-card"><div><strong>'+esc(p.name)+'</strong><small>'+p.tracks.length+' 首歌曲</small></div><div><button class="text-btn" data-open="'+p.id+'">打开</button> <button class="text-btn" data-delete="'+p.id+'">删除</button></div></div>').join("");
-  list.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openPlaylist(b.dataset.open));
-  list.querySelectorAll("[data-delete]").forEach(b=>b.onclick=()=>{state.playlists=state.playlists.filter(p=>p.id!==b.dataset.delete);save();renderLibrary()});
+  list.innerHTML=state.playlists.map(p=>'<div class="playlist-card" data-playlist-card="'+p.id+'" tabindex="0"><div class="playlist-card-info"><strong>'+esc(p.name)+'</strong><small>'+p.tracks.length+' 首歌曲</small></div><button class="text-btn" data-delete="'+p.id+'">删除</button></div>').join("");
+  list.querySelectorAll("[data-playlist-card]").forEach(card=>{card.onclick=e=>{if(e.target.closest("[data-delete]"))return;openPlaylist(card.dataset.playlistCard)};card.onkeydown=e=>{if((e.key==="Enter"||e.key===" ")&&!e.target.closest("[data-delete]")){e.preventDefault();openPlaylist(card.dataset.playlistCard)}}});
+  list.querySelectorAll("[data-delete]").forEach(b=>b.onclick=e=>{e.stopPropagation();state.playlists=state.playlists.filter(p=>p.id!==b.dataset.delete);save();renderLibrary()});
 }
 $$("[data-library]").forEach(b=>b.onclick=()=>{state.libraryTab=b.dataset.library;renderLibrary()});
 function addToPlaylist(t){if(!state.playlists.length)state.playlists.push({id:Date.now().toString(),name:"稍后再听",tracks:[]});const p=state.playlists[state.playlists.length-1];if(!p.tracks.some(x=>x.id===t.id))p.tracks.push(t);save();toast("已加入「"+p.name+"」")}
