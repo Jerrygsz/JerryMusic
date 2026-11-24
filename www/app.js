@@ -339,7 +339,7 @@ function transitionPlayer(expanded){
   player.classList.toggle("expanded",expanded);
   player.setAttribute("aria-expanded",String(expanded));
   const last=player.getBoundingClientRect();
-  if(!first.width||!first.height||!last.width||!last.height||typeof player.animate!=="function")return;
+  if(!first.width||!first.height||!last.width||!last.height||typeof player.animate!=="function"||window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)return;
   const dx=first.left-last.left,dy=first.top-last.top;
   const sx=first.width/last.width,sy=first.height/last.height;
   const from=`translate(${dx}px,${dy}px) scale(${sx},${sy})`;
