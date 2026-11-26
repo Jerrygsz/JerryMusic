@@ -218,10 +218,10 @@ public class LocalMusicPlugin extends Plugin {
         }
     }
 
-    private String downloadCoverArt(String releaseId, String fingerprint) {
+    private String downloadCoverArtEntity(String entityType, String entityId) {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL("https://coverartarchive.org/release/" + releaseId + "/front-500");
+            URL url = new URL("https://coverartarchive.org/" + entityType + "/" + entityId + "/front-500");
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(12000);
@@ -278,7 +278,7 @@ public class LocalMusicPlugin extends Plugin {
             }
             File artworkDir = new File(getContext().getFilesDir(), "jerrymusic-artwork");
             if (!artworkDir.exists() && !artworkDir.mkdirs()) { scaled.recycle(); return ""; }
-            File target = new File(artworkDir, "mb_" + Integer.toHexString(releaseId.hashCode()) + ".jpg");
+            File target = new File(artworkDir, "mb_" + entityType + "_" + Integer.toHexString(entityId.hashCode()) + ".jpg");
             File temporary = new File(artworkDir, target.getName() + ".part");
             try (FileOutputStream output = new FileOutputStream(temporary)) {
                 if (!scaled.compress(Bitmap.CompressFormat.JPEG, 88, output)) throw new IllegalStateException("Cover compression failed");
@@ -295,6 +295,22 @@ public class LocalMusicPlugin extends Plugin {
             if (connection != null) connection.disconnect();
         }
     }
+    private String downloadCoverArt(String releaseId, String fingerprint) {
+        String releaseCover = downloadCoverArtEntity("release", releaseId);
+        if (!releaseCover.isEmpty()) return releaseCover;
+        try {
+            String releaseLookup = "https://musicbrainz.org/ws/2/release/" + releaseId + "?inc=release-groups&fmt=json";
+            String lookupText = readHttpText(releaseLookup, true);
+            if (lookupText != null) {
+                JSONObject releaseJson = new JSONObject(lookupText);
+                JSONObject group = releaseJson.optJSONObject("release-group");
+                String groupId = group == null ? "" : group.optString("id", "");
+                if (!groupId.isEmpty()) return downloadCoverArtEntity("release-group", groupId);
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
     private String normalizeMusicText(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
@@ -397,7 +413,7 @@ public class LocalMusicPlugin extends Plugin {
                     }
                 }
                 if (chosen == null) {
-                    prefs.edit().putLong(attemptKey, System.currentTimeMillis()).apply();
+                    prefs.edit().putLong(noMatchKey, System.currentTimeMillis()).apply();
                     JSObject noMatch = new JSObject();
                     noMatch.put("updated", false);
                     noMatch.put("reason", "no_confident_match");
@@ -426,7 +442,7 @@ public class LocalMusicPlugin extends Plugin {
                     }
                 }
                 if (selectedRelease == null) {
-                    prefs.edit().putLong(attemptKey, System.currentTimeMillis()).apply();
+                    prefs.edit().putLong(noMatchKey, System.currentTimeMillis()).apply();
                     JSObject noRelease = new JSObject();
                     noRelease.put("updated", false);
                     noRelease.put("reason", "no_matching_release");
