@@ -148,7 +148,7 @@ function applyEnrichedTrack(track,remote){
 }
 async function enrichMissingTracks(items,sequence){
   if(!LocalMusic||!items?.length)return;
-  let newLookups=0,changed=0;
+  let newLookups=0,changed=0,coverFailures=0;
   for(const track of items){
     if(newLookups>=5)break;
     if(!track?.uri||!track.title||!track.artist||track.artist==="本地音乐")continue;
@@ -165,6 +165,7 @@ async function enrichMissingTracks(items,sequence){
       if(result?.updated){
         applyEnrichedTrack(track,result);
         changed++;
+        if(result.coverStatus==="download_failed")coverFailures++;
       }
     }catch(error){
       console.debug("[JerryMusic] Online metadata lookup paused:",error);
@@ -177,7 +178,7 @@ async function enrichMissingTracks(items,sequence){
     }
   }
   if(sequence===localSearchSequence&&newLookups>0){
-    $("#search-status").textContent="本地扫描完成 · 本轮在线检查 "+newLookups+" 首"+(changed?"，成功补全 "+changed+" 首":"，未找到足够可靠的匹配");
+    $("#search-status").textContent="本地扫描完成 · 本轮在线检查 "+newLookups+" 首"+(changed?"，成功补全 "+changed+" 首":"，未找到足够可靠的匹配")+(coverFailures?"，其中封面下载失败 "+coverFailures+" 首":"");
   }
 }
 async function searchLocal(q){

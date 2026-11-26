@@ -351,8 +351,17 @@ public class LocalMusicPlugin extends Plugin {
                     call.resolve(already);
                     return;
                 }
+                String noMatchKey = "online_no_match_v1_" + fingerprint;
+                long noMatchAt = prefs.getLong(noMatchKey, 0L);
+                if (noMatchAt > 0L && System.currentTimeMillis() - noMatchAt < 30L * 24L * 60L * 60L * 1000L) {
+                    JSObject skipped = new JSObject();
+                    skipped.put("updated", false);
+                    skipped.put("reason", "recently_no_match");
+                    call.resolve(skipped);
+                    return;
+                }
                 long attemptedAt = prefs.getLong(attemptKey, 0L);
-                if (attemptedAt > 0L && System.currentTimeMillis() - attemptedAt < 30L * 24L * 60L * 60L * 1000L) {
+                if (attemptedAt > 0L && System.currentTimeMillis() - attemptedAt < 6L * 60L * 60L * 1000L) {
                     JSObject skipped = new JSObject();
                     skipped.put("updated", false);
                     skipped.put("reason", "recently_checked");
@@ -438,6 +447,7 @@ public class LocalMusicPlugin extends Plugin {
                     if (bestTag != null) remoteGenre = bestTag.optString("name", "");
                 }
                 String artworkPath = hasArtwork ? "" : downloadCoverArt(releaseId, fingerprint);
+                String coverStatus = hasArtwork ? "already_present" : (artworkPath.isEmpty() ? "download_failed" : "downloaded");
 
                 if (metadata.optString("album", "").trim().isEmpty() && !remoteAlbum.isEmpty()) metadata.put("album", remoteAlbum);
                 if (metadata.optString("albumArtist", "").trim().isEmpty() && !remoteAlbumArtist.isEmpty()) metadata.put("albumArtist", remoteAlbumArtist);
@@ -457,6 +467,8 @@ public class LocalMusicPlugin extends Plugin {
                 if (!artworkPath.isEmpty()) response.put("artworkPath", artworkPath);
                 response.put("musicBrainzRecordingId", recordingId);
                 response.put("musicBrainzReleaseId", releaseId);
+                response.put("coverStatus", coverStatus);
+                response.put("reason", artworkPath.isEmpty() && !hasArtwork ? "metadata_only_cover_failed" : "updated");
                 call.resolve(response);
             } catch (Exception e) {
                 call.reject("Online music matching failed: " + e.getMessage(), e);
